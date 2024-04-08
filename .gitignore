@@ -24,6 +24,12 @@ atlassian-ide-plugin.xml
 
 
 # ##################################################
+# Editor: Panic Nova
+
+.nova/
+
+
+# ##################################################
 # Editor: Visual Studio Code
 # https://github.com/github/gitignore/blob/main/Global/VisualStudioCode.gitignore
 
