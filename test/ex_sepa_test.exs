@@ -1,5 +1,5 @@
 defmodule ExSepaTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: false
   doctest ExSepa
 
   test "greets the world" do
