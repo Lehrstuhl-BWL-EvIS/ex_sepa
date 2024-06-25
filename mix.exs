@@ -6,7 +6,8 @@ defmodule ExSepa.MixProject do
       app: :ex_sepa,
       version: "0.1.0",
       elixir: "~> 1.16",
-      start_permanent: Mix.env() == :prod,
+      # :prod
+      start_permanent: Mix.env() == :test,
       deps: deps(),
 
       # Docs
@@ -17,7 +18,7 @@ defmodule ExSepa.MixProject do
         # The main page in the docs
         # main: "ExSepa",
         # logo: "path/to/logo.png",
-        extras: ["README.md", "LICENSE"]
+        extras: ["README.md"]
       ]
     ]
   end
@@ -45,7 +46,12 @@ defmodule ExSepa.MixProject do
       # Generates fake data (primarily for the seed)
       # https://hexdocs.pm/faker/readme.html
       # https://github.com/elixirs/faker
-      {:faker, "~> 0.18", only: [:dev, :test]}
+      {:faker, "~> 0.18", only: [:dev, :test]},
+
+      # An Elixir library for building XML
+      # https://hexdocs.pm/xml_builder/
+      # https://github.com/joshnuss/xml_builder
+      {:xml_builder, "~> 2.3"}
     ]
   end
 end
