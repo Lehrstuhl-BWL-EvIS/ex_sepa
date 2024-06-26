@@ -3,6 +3,8 @@ defmodule ExSepa.DirectDebit do
   Documentation for `ExSepa.DirectDebit`.
 
   This library is based on the structure of the SEPA Core Direct Debit Scheme.
+  The customer direct debit initiation message is sent by the initiating party to the creditor's forwarding agent or creditor's agent.
+  It is used to request a single or batch collection(s) of funds from one or more debtor accounts on behalf of a creditor.
 
   The `new()` function is used to create a new direct debit transaction initiation message.
   Now one or more payment information messages can be added using the `add_payment_information()` function.
@@ -12,28 +14,16 @@ defmodule ExSepa.DirectDebit do
 
   # Identifies the direct debit sequence, such as first, recurrent, final or one-off.
   @sequence_type3_code_atom [:OneOff, :First, :Recurring, :Final]
-  @sequence_type3_code %{OneOff: "OOFF", First: "FRST", Recurring: "RCUR", Final: "FNAL"}
 
   @doc """
-  Creates a new Direct Debit with a `Unique Message Id` and `Initiating Party Name`
+  Creates a new Direct Debit with a `Unique Message Id` and `Initiating Party Name`.
 
   ## Example
 
       direct_debit = ExSepa.DirectDebit.new("Msg-ID-001", "Initiating Party")
   """
+  @spec new(String.t(), String.t()) :: {:error, String.t()} | {:ok, struct()}
   def new(msg_id, initiating_party) do
-    if String.valid?(msg_id) do
-      if String.valid?(initiating_party) do
-        do_directdebit_new(msg_id, initiating_party)
-      else
-        {:error, "initiating_party is not a String"}
-      end
-    else
-      {:error, "msg_id is not a String"}
-    end
-  end
-
-  defp do_directdebit_new(msg_id, initiating_party) do
     ExSepa.CustomerDirectDebitInitiationV08.new(msg_id, initiating_party)
   end
 
@@ -53,28 +43,40 @@ defmodule ExSepa.DirectDebit do
           "DE00ZZZ00099999999"
         )
   """
+  @spec add_payment_information(
+          ExSepa.CustomerDirectDebitInitiationV08.t(),
+          String.t(),
+          Date.t(),
+          String.t(),
+          String.t(),
+          String.t(),
+          String.t(),
+          atom()
+        ) ::
+          {:error,  String.t()}
+          | ExSepa.CustomerDirectDebitInitiationV08.t()
   def add_payment_information(
-        %ExSepa.CustomerDirectDebitInitiationV08{} = cddi,
-        pmt_inf_id,
-        %Date{} = reqd_colltn_dt,
-        cdtr_nm,
-        cdtr_acct_iban,
-        dbtr_agt_bic,
-        cdtr_id,
-        seq_tp \\ :First
+        %ExSepa.CustomerDirectDebitInitiationV08{} = initiation,
+        payment_id,
+        %Date{} = due_date,
+        creditor_id,
+        creditor_name,
+        creditor_iban,
+        creditor_bic \\ "",
+        sequence_type \\ :First
       )
-      when is_binary(pmt_inf_id) and is_binary(cdtr_nm) and is_binary(cdtr_acct_iban) and
-             is_binary(dbtr_agt_bic) and is_binary(cdtr_id) and
-             seq_tp in @sequence_type3_code_atom do
-    ExSepa.CustomerDirectDebitInitiationV08.add_pmt_inf(
-      cddi,
-      pmt_inf_id,
-      reqd_colltn_dt,
-      cdtr_nm,
-      cdtr_acct_iban,
-      dbtr_agt_bic,
-      cdtr_id,
-      @sequence_type3_code[seq_tp]
+      when is_binary(payment_id) and is_binary(creditor_name) and is_binary(creditor_iban) and
+             is_binary(creditor_bic) and is_binary(creditor_id) and
+             sequence_type in @sequence_type3_code_atom do
+    ExSepa.CustomerDirectDebitInitiationV08.add_payment_information(
+      initiation,
+      payment_id,
+      due_date,
+      creditor_id,
+      creditor_name,
+      creditor_iban,
+      creditor_bic,
+      sequence_type
     )
   end
 
@@ -97,43 +99,58 @@ defmodule ExSepa.DirectDebit do
           "Unstructured Remittance Information"
         )
   """
+  @spec add_transaction_information(
+          ExSepa.CustomerDirectDebitInitiationV08.t(),
+          String.t(),
+          String.t(),
+          float(),
+          String.t(),
+          Date.t(),
+          String.t(),
+          String.t(),
+          String.t(),
+          String.t()
+        ) :: ExSepa.CustomerDirectDebitInitiationV08.t()
   def add_transaction_information(
-        %ExSepa.CustomerDirectDebitInitiationV08{} = cddi,
-        pmt_inf_id,
+        %ExSepa.CustomerDirectDebitInitiationV08{} = initiation,
+        payment_id,
         end_to_end_id,
-        instd_amt,
-        mndt_id,
-        %Date{} = dt_of_sgntr,
-        dbtr_nm,
-        dbtr_acct_iban,
-        dbtr_agt_bic \\ "",
-        rmt_inf \\ ""
+        amount,
+        mandate_id,
+        %Date{} = mandate_signing_date,
+        debtor_name,
+        debtor_iban,
+        debtor_bic \\ "",
+        remittance_information \\ ""
       )
-      when is_binary(pmt_inf_id) and is_binary(end_to_end_id) and is_float(instd_amt) and
-             is_binary(mndt_id) and is_binary(dbtr_nm) and is_binary(dbtr_acct_iban) and
-             is_binary(dbtr_agt_bic) and is_binary(rmt_inf) do
-    ExSepa.CustomerDirectDebitInitiationV08.add_drct_dbt_tx_inf(
-      cddi,
-      pmt_inf_id,
+      when is_binary(payment_id) and is_binary(end_to_end_id) and is_float(amount) and
+             is_binary(mandate_id) and is_binary(debtor_name) and is_binary(debtor_iban) and
+             is_binary(debtor_bic) and is_binary(remittance_information) do
+    ExSepa.CustomerDirectDebitInitiationV08.add_transaction_information(
+      initiation,
+      payment_id,
       end_to_end_id,
-      instd_amt,
-      mndt_id,
-      dt_of_sgntr,
-      dbtr_nm,
-      dbtr_acct_iban,
-      dbtr_agt_bic,
-      rmt_inf
+      amount,
+      mandate_id,
+      mandate_signing_date,
+      debtor_name,
+      debtor_iban,
+      debtor_bic,
+      remittance_information
     )
   end
 
   @doc false
   def add_transaction_information(
-        %ExSepa.CustomerDirectDebitInitiationV08{} = cddi,
-        pmt_inf_id,
+        %ExSepa.CustomerDirectDebitInitiationV08{} = initiation,
+        payment_id,
         %ExSepa.TransactionInformation{} = ddti
       )
-      when is_binary(pmt_inf_id) do
-    %ExSepa.CustomerDirectDebitInitiationV08{cddi | drctDbtTxInf: [{pmt_inf_id, ddti}]}
+      when is_binary(payment_id) do
+    %ExSepa.CustomerDirectDebitInitiationV08{
+      initiation
+      | transaction_information: [{payment_id, ddti}]
+    }
   end
 
   @doc """
@@ -143,7 +160,7 @@ defmodule ExSepa.DirectDebit do
 
       ExSepa.DirectDebit.to_xml(direct_debit)
   """
-  def to_xml(%ExSepa.CustomerDirectDebitInitiationV08{} = cddi) do
-    ExSepa.CustomerDirectDebitInitiationV08.to_xml(cddi)
+  def to_xml(%ExSepa.CustomerDirectDebitInitiationV08{} = initiation) do
+    ExSepa.CustomerDirectDebitInitiationV08.to_xml(initiation)
   end
 end

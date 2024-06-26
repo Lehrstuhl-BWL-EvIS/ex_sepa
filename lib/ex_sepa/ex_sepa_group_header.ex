@@ -1,50 +1,49 @@
 defmodule ExSepa.GroupHeader do
   import XmlBuilder
 
-  @moduledoc false
-  # """
-  # GroupHeader: Set of characteristics shared by all individual transactions included in the message.
-  # """
+  @moduledoc """
+  Group Header: Set of characteristics shared by all individual transactions included in the message.
+  """
 
-  @enforce_keys [:msgId, :initgPtyNm]
+  @enforce_keys [:msg_id, :initiating_party_name]
+  @typedoc """
+  The map has the following keys:
+    * `:msg_id` - Message Identification: Point to point reference, assigned by the instructing party and sent to the next party in the chain, to unambiguously identify the message (maximum length of 35 characters).
+    * `:initiating_party_name`- Initiating Party Name: Name by which a party is known and which is usually used to identify that party (maximum length of 70 characters).
+  """
   @type t :: %__MODULE__{
-          msgId: String.t(),
-          initgPtyNm: String.t()
+          msg_id: String.t(),
+          initiating_party_name: String.t()
         }
-  defstruct [:msgId, :initgPtyNm]
+  defstruct [:msg_id, :initiating_party_name]
 
   @doc """
-  Message Identification: Point to point reference, assigned by the instructing party and sent to the next party in the chain, to unambiguously identify the message.
-  Usage: The instructing party has to make sure that MessageIdentification is unique per instructed party for a pre-agreed period.
-  Specifies a character string with a maximum length of 35 characters.
-
-  Initiating Party Name: Name by which a party is known and which is usually used to identify that party.
-  Specifies a character string with a maximum length of 140 characters.
+  Returns a new group header with the given arguments.
 
   ## Examples
 
       iex> ExSepa.GroupHeader.new("Message-ID-4711", "Initiator Name")
-      {:ok, %ExSepa.GroupHeader{msgId: "Message-ID-4711", initgPtyNm: "Initiator Name"}}
+      {:ok, %ExSepa.GroupHeader{msg_id: "Message-ID-4711", initiating_party_name: "Initiator Name"}}
 
   """
-  @spec new(String.t(), String.t()) ::
-          {:error, {ExSepa.GroupHeader, String.t()}} | {:ok, struct()}
-  def new(msg_id, initg_pty_nm) when is_binary(msg_id) and is_binary(initg_pty_nm) do
-    struct = struct(__MODULE__, msgId: msg_id, initgPtyNm: initg_pty_nm)
-
-    with :ok <- max_text(:msgId, msg_id, 35),
-         :ok <- max_text(:initgPtyNm, initg_pty_nm, 70) do
-      {:ok, struct}
+  @spec new(String.t(), String.t()) :: {:error, String.t()} | {:ok, struct()}
+  def new(msg_id, initiating_party_name)
+      when is_binary(msg_id) and is_binary(initiating_party_name) do
+    with :ok <- max_text(:msg_id, msg_id, 35),
+         :ok <- ExSepa.in_language(msg_id),
+         :ok <- max_text(:initiating_party_name, initiating_party_name, 70),
+         :ok <- ExSepa.in_language(initiating_party_name) do
+      {:ok, struct(__MODULE__, msg_id: msg_id, initiating_party_name: initiating_party_name)}
     else
-      {:error, e} -> {:error, {__MODULE__, e}}
+      {:error, e} -> {:error, e}
     end
   end
 
-  def new(msg_id, initg_pty_nm) do
+  def new(msg_id, initiating_party_name) do
     error_text = "Parameters must be strings."
 
     error_text =
-      case real_text(:msgId, msg_id) do
+      case real_text(:msg_id, msg_id) do
         {:error, e} ->
           error_text <> " - " <> e
 
@@ -53,7 +52,7 @@ defmodule ExSepa.GroupHeader do
       end
 
     error_text =
-      case real_text(:initgPtyNm, initg_pty_nm) do
+      case real_text(:initiating_party_name, initiating_party_name) do
         {:error, e} ->
           error_text <> " - " <> e
 
@@ -61,15 +60,23 @@ defmodule ExSepa.GroupHeader do
           error_text
       end
 
-    {:error, {__MODULE__, error_text}}
+    {:error, error_text}
   end
 
   defp real_text(element, text) do
     case is_binary(text) do
       true ->
         case String.valid?(text) do
-          true -> :ok
-          _ -> {:error, "#{element}: must be UTF-8 encoded binary"}
+          true ->
+            :ok
+
+          # case ExSepa.in_language(text) do
+          #   :ok -> :ok
+          #   {:error, e} -> {:error, "#{element} - #{e}"}
+          # end
+
+          _ ->
+            {:error, "#{element}: must be UTF-8 encoded binary"}
         end
 
       _ ->
@@ -92,27 +99,14 @@ defmodule ExSepa.GroupHeader do
 
   @doc false
   @spec to_xml(t(), non_neg_integer(), float()) :: {atom(), any(), any()}
-  def to_xml(%__MODULE__{} = grphdr, nb_of_txs, ctrl_sum) do
-    # SG: creDtTm: Date and time at which the message was created. Gets the time only by seconds.
-    cre_dt_tm = DateTime.utc_now(:second)
-
-    # SG: Type = GroupHeader83
+  def to_xml(%__MODULE__{} = group_header, nb_of_txs, ctrl_sum) do
     element(:GrpHdr, nil, [
-      # SG: Type = Max35Text -> Length 1 .. 35
-      element(:MsgId, nil, grphdr.msgId),
-      # SG: Type = ISODateTime
-      element(:CreDtTm, nil, cre_dt_tm |> DateTime.to_iso8601()),
-      # SG: Type = Max15NumericText -> Pattern = [0-9]{1,15}
+      element(:MsgId, nil, group_header.msg_id),
+      element(:CreDtTm, nil, DateTime.to_iso8601(DateTime.utc_now(:second))),
       element(:NbOfTxs, nil, nb_of_txs),
-      # SG: Type = DecimalNumber -> TotalDigits = 18, FractDigits = 2
       element(:CtrlSum, nil, ctrl_sum),
-      # SG: Type = PartyIdentification135
       element(:InitgPty, nil, [
-        # SG: OPTIONAL! Type = Max140Text -> Length 1 .. 70
-        element(:Nm, nil, grphdr.initgPtyNm)
-        # element(:Id, nil, [initgPtyId])  # SG: OPTIONAL! Type = Party38Choice
-        # initgPtyId = element(:OrgId, nil, initgPtyIdOrgId)  # SG: xs:choice! Type = OrganisationIdentification29 -> Either ‘AnyBIC’, 'LEI' or one occurrence of ‘Other’ is allowed.
-        # initgPtyId = element(:PrvtId, nil, initgPtyIdPrvtId)  # SG: xs:choice! Type = PersonIdentification13 -> Either ‘Date and Place of Birth’ or one occurrence of ‘Other’ is allowed.
+        element(:Nm, nil, group_header.initiating_party_name)
       ])
     ])
   end

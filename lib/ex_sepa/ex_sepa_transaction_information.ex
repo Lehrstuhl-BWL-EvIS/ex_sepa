@@ -1,110 +1,177 @@
 defmodule ExSepa.TransactionInformation do
   import XmlBuilder
 
-  @moduledoc false
-  # """
-  # # Direct Debit Transaction Information
-  # """
+  @moduledoc """
+  Direct Debit Transaction Information: Provides information on the individual transaction(s) included in the message.
+  """
 
-  @enforce_keys [:endToEndId, :instdAmt, :mndtId, :dtOfSgntr, :dbtrNm, :dbtrAcctIban]
+  @enforce_keys [
+    :end_to_end_id,
+    :amount,
+    :mandate_id,
+    :mandate_signing_date,
+    :debtor_name,
+    :debtor_iban
+  ]
+  @typedoc """
+  The map has the following keys:
+
+    * `:end_to_end_id` - The Creditor's Reference of the Direct Debit Transaction (maximum length of 35 characters).
+    * `:amount` - The Amount of the Collection in euro.
+    * `:mandate_id` - The Unique Mandate Reference (maximum length of 35 characters).
+    * `:mandate_signing_date` - The Date of Signing of the Mandate (ISODate).
+    * `:debtor_name` - The Name of the Debtor (maximum length of 70 characters).
+    * `:debtor_iban` - The account number (IBAN) of the Debtor.
+    * `:debtor_bic` - BIC code of the Debtor PSP.
+    * `:remittance_information` - The Remittance information sent by the Creditor to the Debtor in the Collection (maximum length of 140 characters).
+  """
   defstruct [
-    :endToEndId,
-    :instdAmt,
-    :mndtId,
-    :dtOfSgntr,
-    :dbtrNm,
-    :dbtrAcctIban,
-    dbtrAgtBic: nil,
-    rmtInf: nil
+    :end_to_end_id,
+    :amount,
+    :mandate_id,
+    :mandate_signing_date,
+    :debtor_name,
+    :debtor_iban,
+    debtor_bic: "",
+    remittance_information: ""
   ]
 
   @type t :: %__MODULE__{
-          endToEndId: String.t(),
-          instdAmt: float(),
-          mndtId: String.t(),
-          dtOfSgntr: Date.t(),
-          dbtrNm: String.t(),
-          dbtrAcctIban: String.t(),
-          dbtrAgtBic: String.t() | nil,
-          rmtInf: String.t() | nil
+          end_to_end_id: String.t(),
+          amount: float(),
+          mandate_id: String.t(),
+          mandate_signing_date: Date.t(),
+          debtor_name: String.t(),
+          debtor_iban: String.t(),
+          debtor_bic: String.t(),
+          remittance_information: String.t()
         }
 
   @doc """
-  # new Direct Debit Transaction Information
-
-  endToEndId: Unique identification assigned by the initiating party to unambiguously identify the transaction. This identification is passed on, unchanged, throughout the entire end-to-end chain. Usage: The end-to-end identification can be used for reconciliation or to link tasks relating to the transaction. It can be included in several messages related to the transaction.
-
-  instdAmt: Amount of money to be moved between the debtor and creditor, before deduction of charges, expressed in the currency as ordered by the initiating party. Usage: This amount has to be transported unchanged through the transaction chain. Amount must be 0.01 or more and 999999999.99 or less.
-
-  mndtId: Unique identification, as assigned by the creditor, to unambiguously identify the mandate.
-
-  dtOfSgntr: Date on which the direct debit mandate has been signed by the debtor.
-
-  dbtrAgtBic: BIC code of the Debtor PSP.
-
-  dbtrNm:application:
-
-  dbtrAcctIban:
-
-  rmtInf: Information supplied to enable the matching of an entry with the items that the transfer is intended to settle, such as commercial invoices in an accounts' receivable system.
+  new Direct Debit Transaction Information
   """
   def new(
-        endToEndId,
-        instdAmt,
-        mndtId,
-        dtOfSgntr,
-        dbtrNm,
-        dbtrAcctIban,
-        dbtrAgtBic \\ "",
-        rmtInf \\ ""
-      ) do
+        end_to_end_id,
+        amount,
+        mandate_id,
+        mandate_signing_date,
+        debtor_name,
+        debtor_iban,
+        debtor_bic \\ "",
+        remittance_information \\ ""
+      )
+
+  def new(
+        end_to_end_id,
+        amount,
+        mandate_id,
+        %Date{} = mandate_signing_date,
+        debtor_name,
+        debtor_iban,
+        debtor_bic,
+        remittance_information
+      )
+      when is_binary(end_to_end_id) and is_float(amount) and is_binary(mandate_id) and
+             is_binary(debtor_name) and is_binary(debtor_iban) and is_binary(debtor_bic) and
+             is_binary(remittance_information) do
     %__MODULE__{
-      endToEndId: endToEndId,
-      instdAmt: instdAmt,
-      mndtId: mndtId,
-      dtOfSgntr: dtOfSgntr,
-      dbtrNm: dbtrNm,
-      dbtrAcctIban: dbtrAcctIban,
-      dbtrAgtBic: dbtrAgtBic,
-      rmtInf: rmtInf
+      end_to_end_id: end_to_end_id,
+      amount: amount,
+      mandate_id: mandate_id,
+      mandate_signing_date: mandate_signing_date,
+      debtor_name: debtor_name,
+      debtor_iban: debtor_iban,
+      debtor_bic: debtor_bic,
+      remittance_information: remittance_information
     }
   end
 
-  @spec create([{any(), __MODULE__.t()}]) :: list()
-  def create([]), do: []
-
-  def create([{_, %__MODULE__{} = first} | rest]) do
-    [do_create(first) | create(rest)]
+  def new(
+        end_to_end_id,
+        amount,
+        mandate_id,
+        _mandate_signing_date,
+        debtor_name,
+        debtor_iban,
+        debtor_bic,
+        remittance_information
+      )
+      when is_binary(end_to_end_id) and is_float(amount) and is_binary(mandate_id) and
+             is_binary(debtor_name) and is_binary(debtor_iban) and is_binary(debtor_bic) and
+             is_binary(remittance_information) do
+    {:error, "mandate_signing_date must be a date"}
   end
 
-  defp do_create(%__MODULE__{} = drctDbtTxInf) do
+  def new(
+        end_to_end_id,
+        _amount,
+        mandate_id,
+        _mandate_signing_date,
+        debtor_name,
+        debtor_iban,
+        debtor_bic,
+        remittance_information
+      )
+      when is_binary(end_to_end_id) and is_binary(mandate_id) and
+             is_binary(debtor_name) and is_binary(debtor_iban) and is_binary(debtor_bic) and
+             is_binary(remittance_information) do
+    {:error, "amount must be a float(18.2)"}
+  end
+
+  def new(
+        _end_to_end_id,
+        _amount,
+        _mandate_id,
+        _mandate_signing_date,
+        _debtor_name,
+        _debtor_iban,
+        _debtor_bic,
+        _remittance_information
+      ) do
+    {:error, "Parameters must be a strings"}
+  end
+
+  @doc false
+  @spec to_xml([{any(), __MODULE__.t()}]) :: list()
+  def to_xml([]), do: []
+
+  def to_xml([{_, %__MODULE__{} = first} | rest]) do
+    [do_to_xml(first) | to_xml(rest)]
+  end
+
+  defp do_to_xml(%__MODULE__{} = transaction_information) do
     element(:DrctDbtTxInf, nil, [
       element(:PmtId, nil, [
-        element(:EndToEndId, nil, drctDbtTxInf.endToEndId)
+        element(:EndToEndId, nil, transaction_information.end_to_end_id)
       ]),
-      element(:InstdAmt, %{Ccy: "EUR"}, drctDbtTxInf.instdAmt),
+      element(:InstdAmt, %{Ccy: "EUR"}, transaction_information.amount),
       element(:DrctDbtTx, nil, [
         element(:MndtRltdInf, nil, [
-          element(:MndtId, nil, drctDbtTxInf.mndtId),
-          element(:DtOfSgntr, nil, drctDbtTxInf.dtOfSgntr)
+          element(:MndtId, nil, transaction_information.mandate_id),
+          element(:DtOfSgntr, nil, transaction_information.mandate_signing_date)
         ])
       ]),
       element(:DbtrAgt, nil, [
-        # <FinInstnId><BICFI>dbtrAgtBic</BICFI></FinInstnId> or by default <Othr><Id>NOTPROVIDED</Id></Othr>
         element(:FinInstnId, nil, [
-          element(:BICFI, nil, drctDbtTxInf.dbtrAgtBic)
+          if transaction_information.debtor_bic == "" do
+            element(:Othr, nil, [
+              element(:Id, nil, "NOTPROVIDED")
+            ])
+          else
+            element(:BICFI, nil, transaction_information.debtor_bic)
+          end
         ])
       ]),
       element(:Dbtr, nil, [
-        element(:Nm, nil, drctDbtTxInf.dbtrNm)
+        element(:Nm, nil, transaction_information.debtor_name)
       ]),
       element(:DbtrAcct, nil, [
         element(:Id, nil, [
-          element(:IBAN, nil, drctDbtTxInf.dbtrAcctIban)
+          element(:IBAN, nil, transaction_information.debtor_iban)
         ])
       ]),
       element(:RmtInf, nil, [
-        element(:Ustrd, nil, drctDbtTxInf.rmtInf)
+        element(:Ustrd, nil, transaction_information.remittance_information)
       ])
     ])
   end
