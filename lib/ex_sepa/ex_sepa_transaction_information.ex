@@ -4,6 +4,7 @@ defmodule ExSepa.TransactionInformation do
   @moduledoc """
   Direct Debit Transaction Information: Provides information on the individual transaction(s) included in the message.
   """
+  alias ExSepa.Validation
 
   @enforce_keys [
     :end_to_end_id,
@@ -47,9 +48,19 @@ defmodule ExSepa.TransactionInformation do
           remittance_information: String.t()
         }
 
-  @doc """
-  new Direct Debit Transaction Information
-  """
+  @spec new(
+          String.t(),
+          float(),
+          String.t(),
+          Date.t(),
+          String.t(),
+          String.t(),
+          String.t(),
+          String.t()
+        ) ::
+          {:error, String.t()} | {:ok, ExSepa.TransactionInformation.t()}
+
+  @doc false
   def new(
         end_to_end_id,
         amount,
@@ -74,16 +85,28 @@ defmodule ExSepa.TransactionInformation do
       when is_binary(end_to_end_id) and is_float(amount) and is_binary(mandate_id) and
              is_binary(debtor_name) and is_binary(debtor_iban) and is_binary(debtor_bic) and
              is_binary(remittance_information) do
-    %__MODULE__{
-      end_to_end_id: end_to_end_id,
-      amount: amount,
-      mandate_id: mandate_id,
-      mandate_signing_date: mandate_signing_date,
-      debtor_name: debtor_name,
-      debtor_iban: debtor_iban,
-      debtor_bic: debtor_bic,
-      remittance_information: remittance_information
-    }
+    with :ok <- Validation.max_text(:end_to_end_id, end_to_end_id, 35),
+         :ok <- Validation.amount(amount),
+         :ok <- Validation.max_text(:mandate_id, mandate_id, 35),
+         :ok <- Validation.date(mandate_signing_date),
+         :ok <- Validation.max_text(:debtor_name, debtor_name, 70),
+         :ok <- Validation.iban(debtor_iban),
+         :ok <- Validation.bic(debtor_bic),
+         :ok <- Validation.max_text(:remittance_information, remittance_information, 140) do
+      {:ok,
+       %__MODULE__{
+         end_to_end_id: end_to_end_id,
+         amount: amount,
+         mandate_id: mandate_id,
+         mandate_signing_date: mandate_signing_date,
+         debtor_name: debtor_name,
+         debtor_iban: debtor_iban,
+         debtor_bic: debtor_bic,
+         remittance_information: remittance_information
+       }}
+    else
+      {:error, e} -> {:error, e}
+    end
   end
 
   def new(
@@ -119,16 +142,26 @@ defmodule ExSepa.TransactionInformation do
   end
 
   def new(
-        _end_to_end_id,
+        end_to_end_id,
         _amount,
-        _mandate_id,
+        mandate_id,
         _mandate_signing_date,
-        _debtor_name,
-        _debtor_iban,
-        _debtor_bic,
-        _remittance_information
+        debtor_name,
+        debtor_iban,
+        debtor_bic,
+        remittance_information
       ) do
-    {:error, "Parameters must be a strings"}
+    Validation.text(
+      [
+        {:end_to_end_id, end_to_end_id},
+        {:mandate_id, mandate_id},
+        {:debtor_name, debtor_name},
+        {:debtor_iban, debtor_iban},
+        {:debtor_bic, debtor_bic},
+        {:remittance_information, remittance_information}
+      ],
+      "Parameters must be strings."
+    )
   end
 
   @doc false

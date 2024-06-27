@@ -61,7 +61,7 @@ defmodule ExSepaTest do
   end
 
   describe "ExSepa.DirectDebit new Payment Information" do
-    test "Generate a new Payment Information" do
+    test "Generate a new Payment Information - :ok" do
       date = Date.utc_today() |> Date.add(5)
       direct_debit = ExSepa.DirectDebit.new("Msg-ID-001", "Initiating Party")
 
@@ -92,6 +92,76 @@ defmodule ExSepaTest do
                ],
                transaction_information: nil
              }
+    end
+
+    test "Generate a second new Payment Information - :ok" do
+      date = Date.utc_today() |> Date.add(5)
+
+      direct_debit = ExSepa.DirectDebit.new("Msg-ID-001", "Initiating Party")
+
+      assert direct_debit
+             |> ExSepa.DirectDebit.add_payment_information(
+               "Pmt-ID-001",
+               date,
+               "DE00ZZZ00099999999",
+               "Creditor Name",
+               "DE87200500001234567890"
+             )
+             |> ExSepa.DirectDebit.add_payment_information(
+               "Pmt-ID-002",
+               date |> Date.add(2),
+               "DE00ZZZ00099999999",
+               "Creditor Name",
+               "DE87200500001234567890"
+             ) == %ExSepa.CustomerDirectDebitInitiationV08{
+               group_header: %ExSepa.GroupHeader{
+                 msg_id: "Msg-ID-001",
+                 initiating_party_name: "Initiating Party"
+               },
+               payment_information: [
+                 %ExSepa.PaymentInformation{
+                   payment_id: "Pmt-ID-002",
+                   due_date: date |> Date.add(2),
+                   creditor_id: "DE00ZZZ00099999999",
+                   creditor_name: "Creditor Name",
+                   creditor_iban: "DE87200500001234567890",
+                   creditor_bic: "",
+                   sequence_type: :OneOff
+                 },
+                 %ExSepa.PaymentInformation{
+                   payment_id: "Pmt-ID-001",
+                   due_date: date,
+                   creditor_id: "DE00ZZZ00099999999",
+                   creditor_name: "Creditor Name",
+                   creditor_iban: "DE87200500001234567890",
+                   creditor_bic: "",
+                   sequence_type: :OneOff
+                 }
+               ],
+               transaction_information: nil
+             }
+    end
+
+    test "Generate a second new Payment Information - fail: same payment_id" do
+      date = Date.utc_today() |> Date.add(5)
+
+      direct_debit = ExSepa.DirectDebit.new("Msg-ID-001", "Initiating Party")
+
+      assert direct_debit
+             |> ExSepa.DirectDebit.add_payment_information(
+               "Pmt-ID-001",
+               date,
+               "DE00ZZZ00099999999",
+               "Creditor Name",
+               "DE87200500001234567890"
+             )
+             |> ExSepa.DirectDebit.add_payment_information(
+               "Pmt-ID-001",
+               date,
+               "DE00ZZZ00099999999",
+               "Creditor Name",
+               "DE87200500001234567890"
+             ) == {:error, "payment_id: Pmt-ID-001 already exists"}
     end
   end
 
@@ -135,7 +205,7 @@ defmodule ExSepaTest do
                    creditor_name: "Creditor Name",
                    creditor_iban: "DE87200500001234567890",
                    creditor_bic: "BANKDEFFXXX",
-                   sequence_type: :First
+                   sequence_type: :OneOff
                  }
                ],
                transaction_information: [
@@ -195,7 +265,7 @@ defmodule ExSepaTest do
                    creditor_name: "Creditor Name",
                    creditor_iban: "DE87200500001234567890",
                    creditor_bic: "BANKDEFFXXX",
-                   sequence_type: :First
+                   sequence_type: :OneOff
                  }
                ],
                transaction_information: [
@@ -253,7 +323,7 @@ defmodule ExSepaTest do
                    creditor_name: "Creditor Name",
                    creditor_iban: "DE87200500001234567890",
                    creditor_bic: "BANKDEFFXXX",
-                   sequence_type: :First
+                   sequence_type: :OneOff
                  }
                ],
                transaction_information: [
@@ -310,7 +380,7 @@ defmodule ExSepaTest do
                    creditor_name: "Creditor Name",
                    creditor_iban: "DE87200500001234567890",
                    creditor_bic: "",
-                   sequence_type: :First
+                   sequence_type: :OneOff
                  }
                ],
                transaction_information: [
@@ -327,6 +397,34 @@ defmodule ExSepaTest do
                   }}
                ]
              }
+    end
+
+    test "Generate a second Transaction Information - fail: no such payment_id" do
+      date = Date.utc_today() |> Date.add(3)
+      direct_debit = ExSepa.DirectDebit.new("Msg-ID-001", "Initiating Party")
+
+      direct_debit =
+        ExSepa.DirectDebit.add_payment_information(
+          direct_debit,
+          "Pmt-ID-001",
+          date,
+          "DE00ZZZ00099999999",
+          "Creditor Name",
+          "DE87200500001234567890"
+        )
+
+      assert ExSepa.DirectDebit.add_transaction_information(
+               direct_debit,
+               "Pmt-ID-002",
+               "EndToEndId-0001",
+               100.01,
+               "Mandate-Id-01",
+               ~D[2021-01-21],
+               "Debtor Name",
+               "CH7280005000088877766",
+               "RAIFCH22005",
+               "Unstructured Remittance Information"
+             ) == {:error, "payment_id: Pmt-ID-002 does not exists in payment information"}
     end
   end
 
@@ -390,7 +488,7 @@ defmodule ExSepaTest do
                }
              )
              |> ExSepa.DirectDebit.to_xml() ==
-               "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Document xmlns=\"urn:iso:std:iso:20022:tech:xsd:pain.008.001.08\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"urn:iso:std:iso:20022:tech:xsd:pain.008.001.08 pain.008.001.08.xsd\">\n  <CstmrDrctDbtInitn>\n    <GrpHdr>\n      <MsgId>#{msg_id}</MsgId>\n      <CreDtTm>#{DateTime.to_iso8601(DateTime.utc_now(:second))}</CreDtTm>\n      <NbOfTxs>1</NbOfTxs>\n      <CtrlSum>#{price}</CtrlSum>\n      <InitgPty>\n        <Nm>#{i_party}</Nm>\n      </InitgPty>\n    </GrpHdr>\n    <PmtInf>\n      <PmtInfId>#{pmt_id}</PmtInfId>\n      <PmtMtd>DD</PmtMtd>\n      <NbOfTxs>1</NbOfTxs>\n      <CtrlSum>#{price}</CtrlSum>\n      <PmtTpInf>\n        <SvcLvl>\n          <Cd>SEPA</Cd>\n        </SvcLvl>\n        <LclInstrm>\n          <Cd>CORE</Cd>\n        </LclInstrm>\n        <SeqTp>FRST</SeqTp>\n      </PmtTpInf>\n      <ReqdColltnDt>#{date}</ReqdColltnDt>\n      <Cdtr>\n        <Nm>#{creditor_name}</Nm>\n      </Cdtr>\n      <CdtrAcct>\n        <Id>\n          <IBAN>#{creditor_iban}</IBAN>\n        </Id>\n      </CdtrAcct>\n      <CdtrAgt>\n        <FinInstnId>\n          <BICFI>BANKDEFFXXX</BICFI>\n        </FinInstnId>\n      </CdtrAgt>\n      <CdtrSchmeId>\n        <Id>\n          <PrvtId>\n            <Othr>\n              <Id>DE00ZZZ00099999999</Id>\n              <SchmeNm>\n                <Prtry>SEPA</Prtry>\n              </SchmeNm>\n            </Othr>\n          </PrvtId>\n        </Id>\n      </CdtrSchmeId>\n      <DrctDbtTxInf>\n        <PmtId>\n          <EndToEndId>#{endtoendid}</EndToEndId>\n        </PmtId>\n        <InstdAmt Ccy=\"EUR\">#{price}</InstdAmt>\n        <DrctDbtTx>\n          <MndtRltdInf>\n            <MndtId>#{mndt_id}</MndtId>\n            <DtOfSgntr>#{mndt_date}</DtOfSgntr>\n          </MndtRltdInf>\n        </DrctDbtTx>\n        <DbtrAgt>\n          <FinInstnId>\n            <BICFI>RAIFCH22005</BICFI>\n          </FinInstnId>\n        </DbtrAgt>\n        <Dbtr>\n          <Nm>#{debtor_name}</Nm>\n        </Dbtr>\n        <DbtrAcct>\n          <Id>\n            <IBAN>#{debtor_iban}</IBAN>\n          </Id>\n        </DbtrAcct>\n        <RmtInf>\n          <Ustrd>Unstructured Remittance Information</Ustrd>\n        </RmtInf>\n      </DrctDbtTxInf>\n    </PmtInf>\n  </CstmrDrctDbtInitn>\n</Document>"
+               "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Document xmlns=\"urn:iso:std:iso:20022:tech:xsd:pain.008.001.08\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"urn:iso:std:iso:20022:tech:xsd:pain.008.001.08 pain.008.001.08.xsd\">\n  <CstmrDrctDbtInitn>\n    <GrpHdr>\n      <MsgId>#{msg_id}</MsgId>\n      <CreDtTm>#{DateTime.to_iso8601(DateTime.utc_now(:second))}</CreDtTm>\n      <NbOfTxs>1</NbOfTxs>\n      <CtrlSum>#{price}</CtrlSum>\n      <InitgPty>\n        <Nm>#{i_party}</Nm>\n      </InitgPty>\n    </GrpHdr>\n    <PmtInf>\n      <PmtInfId>#{pmt_id}</PmtInfId>\n      <PmtMtd>DD</PmtMtd>\n      <NbOfTxs>1</NbOfTxs>\n      <CtrlSum>#{price}</CtrlSum>\n      <PmtTpInf>\n        <SvcLvl>\n          <Cd>SEPA</Cd>\n        </SvcLvl>\n        <LclInstrm>\n          <Cd>CORE</Cd>\n        </LclInstrm>\n        <SeqTp>OOFF</SeqTp>\n      </PmtTpInf>\n      <ReqdColltnDt>#{date}</ReqdColltnDt>\n      <Cdtr>\n        <Nm>#{creditor_name}</Nm>\n      </Cdtr>\n      <CdtrAcct>\n        <Id>\n          <IBAN>#{creditor_iban}</IBAN>\n        </Id>\n      </CdtrAcct>\n      <CdtrAgt>\n        <FinInstnId>\n          <BICFI>BANKDEFFXXX</BICFI>\n        </FinInstnId>\n      </CdtrAgt>\n      <CdtrSchmeId>\n        <Id>\n          <PrvtId>\n            <Othr>\n              <Id>DE00ZZZ00099999999</Id>\n              <SchmeNm>\n                <Prtry>SEPA</Prtry>\n              </SchmeNm>\n            </Othr>\n          </PrvtId>\n        </Id>\n      </CdtrSchmeId>\n      <DrctDbtTxInf>\n        <PmtId>\n          <EndToEndId>#{endtoendid}</EndToEndId>\n        </PmtId>\n        <InstdAmt Ccy=\"EUR\">#{price}</InstdAmt>\n        <DrctDbtTx>\n          <MndtRltdInf>\n            <MndtId>#{mndt_id}</MndtId>\n            <DtOfSgntr>#{mndt_date}</DtOfSgntr>\n          </MndtRltdInf>\n        </DrctDbtTx>\n        <DbtrAgt>\n          <FinInstnId>\n            <BICFI>RAIFCH22005</BICFI>\n          </FinInstnId>\n        </DbtrAgt>\n        <Dbtr>\n          <Nm>#{debtor_name}</Nm>\n        </Dbtr>\n        <DbtrAcct>\n          <Id>\n            <IBAN>#{debtor_iban}</IBAN>\n          </Id>\n        </DbtrAcct>\n        <RmtInf>\n          <Ustrd>Unstructured Remittance Information</Ustrd>\n        </RmtInf>\n      </DrctDbtTxInf>\n    </PmtInf>\n  </CstmrDrctDbtInitn>\n</Document>"
     end
 
     test "Generate XML 2" do
@@ -451,7 +549,7 @@ defmodule ExSepaTest do
                }
              )
              |> ExSepa.DirectDebit.to_xml() ==
-               "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Document xmlns=\"urn:iso:std:iso:20022:tech:xsd:pain.008.001.08\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"urn:iso:std:iso:20022:tech:xsd:pain.008.001.08 pain.008.001.08.xsd\">\n  <CstmrDrctDbtInitn>\n    <GrpHdr>\n      <MsgId>#{msg_id}</MsgId>\n      <CreDtTm>#{DateTime.to_iso8601(DateTime.utc_now(:second))}</CreDtTm>\n      <NbOfTxs>1</NbOfTxs>\n      <CtrlSum>#{price}</CtrlSum>\n      <InitgPty>\n        <Nm>#{i_party}</Nm>\n      </InitgPty>\n    </GrpHdr>\n    <PmtInf>\n      <PmtInfId>#{pmt_id}</PmtInfId>\n      <PmtMtd>DD</PmtMtd>\n      <NbOfTxs>1</NbOfTxs>\n      <CtrlSum>#{price}</CtrlSum>\n      <PmtTpInf>\n        <SvcLvl>\n          <Cd>SEPA</Cd>\n        </SvcLvl>\n        <LclInstrm>\n          <Cd>CORE</Cd>\n        </LclInstrm>\n        <SeqTp>FRST</SeqTp>\n      </PmtTpInf>\n      <ReqdColltnDt>#{date}</ReqdColltnDt>\n      <Cdtr>\n        <Nm>#{creditor_name}</Nm>\n      </Cdtr>\n      <CdtrAcct>\n        <Id>\n          <IBAN>#{creditor_iban}</IBAN>\n        </Id>\n      </CdtrAcct>\n      <CdtrAgt>\n        <FinInstnId>\n          <Othr>\n            <Id>NOTPROVIDED</Id>\n          </Othr>\n        </FinInstnId>\n      </CdtrAgt>\n      <CdtrSchmeId>\n        <Id>\n          <PrvtId>\n            <Othr>\n              <Id>DE00ZZZ00099999999</Id>\n              <SchmeNm>\n                <Prtry>SEPA</Prtry>\n              </SchmeNm>\n            </Othr>\n          </PrvtId>\n        </Id>\n      </CdtrSchmeId>\n      <DrctDbtTxInf>\n        <PmtId>\n          <EndToEndId>#{endtoendid}</EndToEndId>\n        </PmtId>\n        <InstdAmt Ccy=\"EUR\">#{price}</InstdAmt>\n        <DrctDbtTx>\n          <MndtRltdInf>\n            <MndtId>#{mndt_id}</MndtId>\n            <DtOfSgntr>#{mndt_date}</DtOfSgntr>\n          </MndtRltdInf>\n        </DrctDbtTx>\n        <DbtrAgt>\n          <FinInstnId>\n            <BICFI>RAIFCH22005</BICFI>\n          </FinInstnId>\n        </DbtrAgt>\n        <Dbtr>\n          <Nm>#{debtor_name}</Nm>\n        </Dbtr>\n        <DbtrAcct>\n          <Id>\n            <IBAN>#{debtor_iban}</IBAN>\n          </Id>\n        </DbtrAcct>\n        <RmtInf>\n          <Ustrd>Unstructured Remittance Information</Ustrd>\n        </RmtInf>\n      </DrctDbtTxInf>\n    </PmtInf>\n  </CstmrDrctDbtInitn>\n</Document>"
+               "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Document xmlns=\"urn:iso:std:iso:20022:tech:xsd:pain.008.001.08\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"urn:iso:std:iso:20022:tech:xsd:pain.008.001.08 pain.008.001.08.xsd\">\n  <CstmrDrctDbtInitn>\n    <GrpHdr>\n      <MsgId>#{msg_id}</MsgId>\n      <CreDtTm>#{DateTime.to_iso8601(DateTime.utc_now(:second))}</CreDtTm>\n      <NbOfTxs>1</NbOfTxs>\n      <CtrlSum>#{price}</CtrlSum>\n      <InitgPty>\n        <Nm>#{i_party}</Nm>\n      </InitgPty>\n    </GrpHdr>\n    <PmtInf>\n      <PmtInfId>#{pmt_id}</PmtInfId>\n      <PmtMtd>DD</PmtMtd>\n      <NbOfTxs>1</NbOfTxs>\n      <CtrlSum>#{price}</CtrlSum>\n      <PmtTpInf>\n        <SvcLvl>\n          <Cd>SEPA</Cd>\n        </SvcLvl>\n        <LclInstrm>\n          <Cd>CORE</Cd>\n        </LclInstrm>\n        <SeqTp>OOFF</SeqTp>\n      </PmtTpInf>\n      <ReqdColltnDt>#{date}</ReqdColltnDt>\n      <Cdtr>\n        <Nm>#{creditor_name}</Nm>\n      </Cdtr>\n      <CdtrAcct>\n        <Id>\n          <IBAN>#{creditor_iban}</IBAN>\n        </Id>\n      </CdtrAcct>\n      <CdtrAgt>\n        <FinInstnId>\n          <Othr>\n            <Id>NOTPROVIDED</Id>\n          </Othr>\n        </FinInstnId>\n      </CdtrAgt>\n      <CdtrSchmeId>\n        <Id>\n          <PrvtId>\n            <Othr>\n              <Id>DE00ZZZ00099999999</Id>\n              <SchmeNm>\n                <Prtry>SEPA</Prtry>\n              </SchmeNm>\n            </Othr>\n          </PrvtId>\n        </Id>\n      </CdtrSchmeId>\n      <DrctDbtTxInf>\n        <PmtId>\n          <EndToEndId>#{endtoendid}</EndToEndId>\n        </PmtId>\n        <InstdAmt Ccy=\"EUR\">#{price}</InstdAmt>\n        <DrctDbtTx>\n          <MndtRltdInf>\n            <MndtId>#{mndt_id}</MndtId>\n            <DtOfSgntr>#{mndt_date}</DtOfSgntr>\n          </MndtRltdInf>\n        </DrctDbtTx>\n        <DbtrAgt>\n          <FinInstnId>\n            <BICFI>RAIFCH22005</BICFI>\n          </FinInstnId>\n        </DbtrAgt>\n        <Dbtr>\n          <Nm>#{debtor_name}</Nm>\n        </Dbtr>\n        <DbtrAcct>\n          <Id>\n            <IBAN>#{debtor_iban}</IBAN>\n          </Id>\n        </DbtrAcct>\n        <RmtInf>\n          <Ustrd>Unstructured Remittance Information</Ustrd>\n        </RmtInf>\n      </DrctDbtTxInf>\n    </PmtInf>\n  </CstmrDrctDbtInitn>\n</Document>"
     end
   end
 end

@@ -1,6 +1,8 @@
 defmodule ExSepa.PaymentInformation do
   import XmlBuilder
 
+  alias ExSepa.Validation
+
   @moduledoc """
   Payment Information: Set of characteristics that apply to the credit side of the payment transactions included in the direct debit transaction initiation.
   """
@@ -41,35 +43,9 @@ defmodule ExSepa.PaymentInformation do
     :sequence_type
   ]
 
-  @doc """
-  New Payment Information
-
-  ## Examples
-
-      iex> new("Payment-ID-4711", Date.utc_today() |> Date.add(5), "DE00ZZZ00099999999", "Creditor Name", "DE87200500001234567890", "BANKDEFFXXX")
-      %ExSepa.PaymentInformation{
-        payment_id: "Payment-ID-4711",
-        due_date: ~D[2024-06-21],
-        creditor_id: "DE00ZZZ00099999999",
-        creditor_name: "Creditor Name",
-        creditor_iban: "DE87200500001234567890",
-        creditor_bic: "BANKDEFFXXX",
-        sequence_type: "OOFF"
-      }
-
-      iex> new("Payment-ID-4711", Date.utc_today() |> Date.add(5), "DE00ZZZ00099999999", "Creditor Name", "DE87200500001234567890", "BANKDEFFXXX", "FRST")
-      %ExSepa.PaymentInformation{
-        payment_id: "Payment-ID-4711",
-        due_date: ~D[2024-06-21],
-        creditor_id: "DE00ZZZ00099999999",
-        creditor_name: "Creditor Name",
-        creditor_iban: "DE87200500001234567890",
-        creditor_bic: "BANKDEFFXXX",
-        sequence_type: "FRST"
-      }
-  """
+  @doc false
   @spec new(String.t(), Date.t(), String.t(), String.t(), String.t(), String.t(), atom()) ::
-          {:error, String.t()} | {:ok, ExSepa.PaymentInformation.t()}
+          {:error, String.t()} | {:ok, __MODULE__.t()}
   def new(
         payment_id,
         due_date,
@@ -92,16 +68,25 @@ defmodule ExSepa.PaymentInformation do
       when is_binary(payment_id) and is_binary(creditor_name) and is_binary(creditor_iban) and
              is_binary(creditor_bic) and is_binary(creditor_id) and
              sequence_type in @sequence_type3_code_atom do
-    {:ok,
-     %__MODULE__{
-       payment_id: payment_id,
-       due_date: due_date,
-       creditor_id: creditor_id,
-       creditor_name: creditor_name,
-       creditor_iban: creditor_iban,
-       creditor_bic: creditor_bic,
-       sequence_type: sequence_type
-     }}
+    with :ok <- Validation.max_text(:payment_id, payment_id, 35),
+         :ok <- Validation.due_date(due_date),
+         :ok <- Validation.max_text(:creditor_id, creditor_id, 35),
+         :ok <- Validation.max_text(:creditor_name, creditor_name, 70),
+         :ok <- Validation.iban(creditor_iban),
+         :ok <- Validation.bic(creditor_bic) do
+      {:ok,
+       %__MODULE__{
+         payment_id: payment_id,
+         due_date: due_date,
+         creditor_id: creditor_id,
+         creditor_name: creditor_name,
+         creditor_iban: creditor_iban,
+         creditor_bic: creditor_bic,
+         sequence_type: sequence_type
+       }}
+    else
+      {:error, e} -> {:error, e}
+    end
   end
 
   def new(
@@ -126,35 +111,66 @@ defmodule ExSepa.PaymentInformation do
         creditor_name,
         creditor_iban,
         creditor_bic,
-        _sequence_type
+        sequence_type
       )
       when is_binary(payment_id) and is_binary(creditor_name) and is_binary(creditor_iban) and
-             is_binary(creditor_bic) and is_binary(creditor_id) do
-    {:error, "Parameter sequence_type must be an atom #{@sequence_type3_code_atom}"}
+             is_binary(creditor_bic) and is_binary(creditor_id) and is_atom(sequence_type) do
+    {:error,
+     "Parameter sequence_type must be an atom :#{Enum.join(@sequence_type3_code_atom, ", :")}"}
   end
 
   def new(
-        _payment_id,
+        payment_id,
         _due_date,
-        _creditor_id,
-        _creditor_name,
-        _creditor_iban,
-        _creditor_bic,
+        creditor_id,
+        creditor_name,
+        creditor_iban,
+        creditor_bic,
+        sequence_type
+      )
+      when is_binary(payment_id) and is_binary(creditor_name) and is_binary(creditor_iban) and
+             is_binary(creditor_bic) and is_binary(creditor_id) and
+             is_atom(sequence_type) == false do
+    {:error,
+     "Parameter sequence_type must be an atom :#{Enum.join(@sequence_type3_code_atom, ", :")}"}
+  end
+
+  def new(
+        payment_id,
+        _due_date,
+        creditor_id,
+        creditor_name,
+        creditor_iban,
+        creditor_bic,
         _sequence_type
       ) do
-    {:error, "Parameters must be strings"}
+    Validation.text(
+      [
+        {:payment_id, payment_id},
+        {:creditor_id, creditor_id},
+        {:creditor_name, creditor_name},
+        {:creditor_iban, creditor_iban},
+        {:creditor_bic, creditor_bic}
+      ],
+      "Parameters must be strings."
+    )
   end
 
   @doc false
-  def to_xml(%__MODULE__{} = payment_information, drct_dbt_tx_inf, nb_of_txs, ctrl_sum)
-      when is_integer(nb_of_txs) and is_float(ctrl_sum) do
+  def to_xml(
+        %__MODULE__{} = payment_information,
+        transaction_information,
+        number_of_transactions,
+        control_sum
+      )
+      when is_integer(number_of_transactions) and is_float(control_sum) do
     element(:PmtInf, nil, [
       element(:PmtInfId, nil, payment_information.payment_id),
       element(:PmtMtd, nil, "DD"),
       # SG: OPTIONAL! TYPE = BatchBookingIndicator -> If present and contains "true", batch booking is requested. If present and contains "false", booking per transaction is requested. If element is not present, pre-agreed customer-to-PSP conditions apply.
       # element(:BtchBookg, nil, btchBookg)
-      element(:NbOfTxs, nil, nb_of_txs),
-      element(:CtrlSum, nil, ctrl_sum),
+      element(:NbOfTxs, nil, number_of_transactions),
+      element(:CtrlSum, nil, control_sum),
       element(:PmtTpInf, nil, [
         element(:SvcLvl, nil, [
           element(:Cd, nil, "SEPA")
@@ -253,7 +269,7 @@ defmodule ExSepa.PaymentInformation do
           ])
         ])
       ]),
-      drct_dbt_tx_inf
+      transaction_information
     ])
   end
 end

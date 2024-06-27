@@ -43,6 +43,11 @@ defmodule ExSepa.MixProject do
       # https://github.com/elixir-lang/ex_doc
       {:ex_doc, "~> 0.31", only: :dev, runtime: false},
 
+      # Validator for IBAN account and BIC numbers
+      # https://hexdocs.pm/bankster/api-reference.html
+      # https://github.com/railsmechanic/bankster
+      {:bankster, "~> 0.4.0"},
+
       # Generates fake data (primarily for the seed)
       # https://hexdocs.pm/faker/readme.html
       # https://github.com/elixirs/faker

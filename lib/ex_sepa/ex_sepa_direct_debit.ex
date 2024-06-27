@@ -3,13 +3,43 @@ defmodule ExSepa.DirectDebit do
   Documentation for `ExSepa.DirectDebit`.
 
   This library is based on the structure of the SEPA Core Direct Debit Scheme.
-  The customer direct debit initiation message is sent by the initiating party to the creditor's forwarding agent or creditor's agent.
+  The direct debit initiation message is sent by the initiating party to the creditor's intermediary or agent.
   It is used to request a single or batch collection(s) of funds from one or more debtor accounts on behalf of a creditor.
 
-  The `new()` function is used to create a new direct debit transaction initiation message.
-  Now one or more payment information messages can be added using the `add_payment_information()` function.
-  Subsequently, at least one transaction information must be added to each payment information with the `add_transaction_information()` command.
-  Finally, the `to_xml()` function returns the data in the ISO 20022 XML message standard.
+  ## Example
+
+      # 1) Create a new direct debit initiation message.
+      direct_debit = ExSepa.DirectDebit.new("Msg-ID-001", "Initiating Party")
+
+      # 2) Add at least one payment information.
+      direct_debit =
+        ExSepa.DirectDebit.add_payment_information(
+          direct_debit,
+          "Payment-ID-0001",
+          Date.utc_today() |> Date.add(5),
+          "DE00ZZZ00099999999",
+          "Creditor Name",
+          "DE87200500001234567890",
+          "BANKDEFFXXX"
+        )
+
+      # 3) Add at least one transaction information to each payment information.
+      direct_debit =
+        ExSepa.DirectDebit.add_transaction_information(
+          direct_debit,
+          "Payment-ID-0001",
+          "EndToEndId-0001",
+          100.01,
+          "Mandate-Id-01",
+          ~D[2021-01-21],
+          "Debtor Name",
+          "CH7280005000088877766",
+          "RAIFCH22005",
+          "Unstructured Remittance Information"
+        )
+
+      # 4) Receive the SEPA compliant XML message as a string.
+      ExSepa.DirectDebit.to_xml(direct_debit)
   """
 
   # Identifies the direct debit sequence, such as first, recurrent, final or one-off.
@@ -17,31 +47,15 @@ defmodule ExSepa.DirectDebit do
 
   @doc """
   Creates a new Direct Debit with a `Unique Message Id` and `Initiating Party Name`.
-
-  ## Example
-
-      direct_debit = ExSepa.DirectDebit.new("Msg-ID-001", "Initiating Party")
   """
-  @spec new(String.t(), String.t()) :: {:error, String.t()} | {:ok, struct()}
+  @spec new(String.t(), String.t()) ::
+          {:error, String.t()} | ExSepa.CustomerDirectDebitInitiationV08.t()
   def new(msg_id, initiating_party) do
     ExSepa.CustomerDirectDebitInitiationV08.new(msg_id, initiating_party)
   end
 
   @doc """
   Payment Information: Set of characteristics that apply to the credit side of the payment transactions included in the direct debit transaction initiation.
-
-  ## Example
-
-      direct_debit =
-        ExSepa.DirectDebit.add_payment_information(
-          direct_debit,
-          "Payment-ID-0001",
-          Date.utc_today() |> Date.add(5),
-          "Creditor Name",
-          "DE87200500001234567890",
-          "BANKDEFFXXX",
-          "DE00ZZZ00099999999"
-        )
   """
   @spec add_payment_information(
           ExSepa.CustomerDirectDebitInitiationV08.t(),
@@ -53,7 +67,7 @@ defmodule ExSepa.DirectDebit do
           String.t(),
           atom()
         ) ::
-          {:error,  String.t()}
+          {:error, String.t()}
           | ExSepa.CustomerDirectDebitInitiationV08.t()
   def add_payment_information(
         %ExSepa.CustomerDirectDebitInitiationV08{} = initiation,
@@ -63,7 +77,7 @@ defmodule ExSepa.DirectDebit do
         creditor_name,
         creditor_iban,
         creditor_bic \\ "",
-        sequence_type \\ :First
+        sequence_type \\ :OneOff
       )
       when is_binary(payment_id) and is_binary(creditor_name) and is_binary(creditor_iban) and
              is_binary(creditor_bic) and is_binary(creditor_id) and
@@ -82,22 +96,6 @@ defmodule ExSepa.DirectDebit do
 
   @doc """
   Transaction Information: Provides information on the individual transaction(s) included in the message.
-
-  ## Example
-
-      direct_debit =
-        ExSepa.DirectDebit.add_transaction_information(
-          direct_debit,
-          "Payment-ID-0001",
-          "EndToEndId-0001",
-          100.01,
-          "Mandate-Id-01",
-          ~D[2021-01-21],
-          "Debtor Name",
-          "CH7280005000088877766",
-          "RAIFCH22005",
-          "Unstructured Remittance Information"
-        )
   """
   @spec add_transaction_information(
           ExSepa.CustomerDirectDebitInitiationV08.t(),
@@ -144,21 +142,17 @@ defmodule ExSepa.DirectDebit do
   def add_transaction_information(
         %ExSepa.CustomerDirectDebitInitiationV08{} = initiation,
         payment_id,
-        %ExSepa.TransactionInformation{} = ddti
+        %ExSepa.TransactionInformation{} = transaction_information
       )
       when is_binary(payment_id) do
     %ExSepa.CustomerDirectDebitInitiationV08{
       initiation
-      | transaction_information: [{payment_id, ddti}]
+      | transaction_information: [{payment_id, transaction_information}]
     }
   end
 
   @doc """
   Returns the data in the ISO 20022 XML message standard.
-
-  ## Example
-
-      ExSepa.DirectDebit.to_xml(direct_debit)
   """
   def to_xml(%ExSepa.CustomerDirectDebitInitiationV08{} = initiation) do
     ExSepa.CustomerDirectDebitInitiationV08.to_xml(initiation)

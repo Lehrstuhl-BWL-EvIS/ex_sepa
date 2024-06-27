@@ -17,9 +17,9 @@ defmodule ExSepa.CustomerDirectDebitInitiationV08 do
   defstruct [:group_header, :payment_information, :transaction_information]
 
   @doc false
-  @spec new(String.t(), String.t()) :: {:error, String.t()} | {:ok, struct()}
-  def new(msg_id, initiation_party) do
-    case ExSepa.GroupHeader.new(msg_id, initiation_party) do
+  @spec new(String.t(), String.t()) :: {:error, String.t()} | __MODULE__.t()
+  def new(msg_id, direct_debit_party) do
+    case ExSepa.GroupHeader.new(msg_id, direct_debit_party) do
       {:ok, group_header} ->
         %__MODULE__{group_header: group_header}
 
@@ -29,19 +29,29 @@ defmodule ExSepa.CustomerDirectDebitInitiationV08 do
   end
 
   @doc false
+  @spec add_payment_information(
+          ExSepa.CustomerDirectDebitInitiationV08.t(),
+          String.t(),
+          Date.t(),
+          String.t(),
+          String.t(),
+          String.t(),
+          String.t(),
+          atom()
+        ) :: {:error, String.t()} | ExSepa.CustomerDirectDebitInitiationV08.t()
   def add_payment_information(
-        initiation,
+        direct_debit,
         payment_id,
         due_date,
         creditor_id,
         creditor_name,
         creditor_iban,
         debtor_bic \\ "",
-        sequence_type \\ "OOFF"
+        sequence_type \\ :OneOff
       )
 
   def add_payment_information(
-        %__MODULE__{} = initiation,
+        %__MODULE__{} = direct_debit,
         payment_id,
         due_date,
         creditor_id,
@@ -50,7 +60,7 @@ defmodule ExSepa.CustomerDirectDebitInitiationV08 do
         debtor_bic,
         sequence_type
       )
-      when initiation.payment_information == nil do
+      when direct_debit.payment_information == nil do
     case ExSepa.PaymentInformation.new(
            payment_id,
            due_date,
@@ -61,7 +71,7 @@ defmodule ExSepa.CustomerDirectDebitInitiationV08 do
            sequence_type
          ) do
       {:ok, payment_information} ->
-        %__MODULE__{initiation | payment_information: [payment_information]}
+        %__MODULE__{direct_debit | payment_information: [payment_information]}
 
       {:error, e} ->
         {:error, e}
@@ -69,7 +79,7 @@ defmodule ExSepa.CustomerDirectDebitInitiationV08 do
   end
 
   def add_payment_information(
-        %__MODULE__{} = initiation,
+        %__MODULE__{} = direct_debit,
         payment_id,
         due_date,
         creditor_id,
@@ -78,29 +88,35 @@ defmodule ExSepa.CustomerDirectDebitInitiationV08 do
         debtor_bic,
         sequence_type
       ) do
-    case ExSepa.PaymentInformation.new(
-           payment_id,
-           due_date,
-           creditor_id,
-           creditor_name,
-           creditor_iban,
-           debtor_bic,
-           sequence_type
-         ) do
-      {:ok, payment_information} ->
-        %__MODULE__{
-          initiation
-          | payment_information: [payment_information | initiation.payment_information]
-        }
+    case Enum.filter(direct_debit.payment_information, &(&1.payment_id == payment_id)) do
+      [] ->
+        case ExSepa.PaymentInformation.new(
+               payment_id,
+               due_date,
+               creditor_id,
+               creditor_name,
+               creditor_iban,
+               debtor_bic,
+               sequence_type
+             ) do
+          {:ok, payment_information} ->
+            %__MODULE__{
+              direct_debit
+              | payment_information: [payment_information | direct_debit.payment_information]
+            }
 
-      {:error, e} ->
-        {:error, e}
+          {:error, e} ->
+            {:error, e}
+        end
+
+      _ ->
+        {:error, "payment_id: #{payment_id} already exists"}
     end
   end
 
   @doc false
   def add_transaction_information(
-        initiation,
+        direct_debit,
         payment_id,
         end_to_end_id,
         amount,
@@ -113,7 +129,7 @@ defmodule ExSepa.CustomerDirectDebitInitiationV08 do
       )
 
   def add_transaction_information(
-        %__MODULE__{} = initiation,
+        %__MODULE__{} = direct_debit,
         payment_id,
         end_to_end_id,
         amount,
@@ -124,29 +140,36 @@ defmodule ExSepa.CustomerDirectDebitInitiationV08 do
         debtor_bic,
         remittance_information
       )
-      when initiation.transaction_information == nil do
-    %__MODULE__{
-      initiation
-      | transaction_information: [
-          {
-            payment_id,
-            ExSepa.TransactionInformation.new(
-              end_to_end_id,
-              amount,
-              mandate_id,
-              mandate_signing_date,
-              debtor_name,
-              debtor_iban,
-              debtor_bic,
-              remittance_information
-            )
-          }
-        ]
-    }
+      when direct_debit.transaction_information == nil do
+    case Enum.filter(direct_debit.payment_information, &(&1.payment_id == payment_id)) do
+      [] ->
+        {:error, "payment_id: #{payment_id} does not exists in payment information"}
+
+      _ ->
+        case ExSepa.TransactionInformation.new(
+               end_to_end_id,
+               amount,
+               mandate_id,
+               mandate_signing_date,
+               debtor_name,
+               debtor_iban,
+               debtor_bic,
+               remittance_information
+             ) do
+          {:ok, transaction_information} ->
+            %__MODULE__{
+              direct_debit
+              | transaction_information: [{payment_id, transaction_information}]
+            }
+
+          {:error, e} ->
+            {:error, e}
+        end
+    end
   end
 
   def add_transaction_information(
-        %__MODULE__{} = initiation,
+        %__MODULE__{} = direct_debit,
         payment_id,
         end_to_end_id,
         amount,
@@ -157,66 +180,78 @@ defmodule ExSepa.CustomerDirectDebitInitiationV08 do
         debtor_bic,
         remittance_information
       ) do
-    %__MODULE__{
-      initiation
-      | transaction_information: [
-          {
-            payment_id,
-            ExSepa.TransactionInformation.new(
-              end_to_end_id,
-              amount,
-              mandate_id,
-              mandate_signing_date,
-              debtor_name,
-              debtor_iban,
-              debtor_bic,
-              remittance_information
-            )
-          }
-          | initiation.transaction_information
-        ]
-    }
+    case Enum.filter(direct_debit.payment_information, &(&1.payment_id == payment_id)) do
+      [] ->
+        {:error, "payment_id: #{payment_id} does not exists in payment information"}
+
+      _ ->
+        case ExSepa.TransactionInformation.new(
+               end_to_end_id,
+               amount,
+               mandate_id,
+               mandate_signing_date,
+               debtor_name,
+               debtor_iban,
+               debtor_bic,
+               remittance_information
+             ) do
+          {:ok, transaction_information} ->
+            %__MODULE__{
+              direct_debit
+              | transaction_information: [
+                  {payment_id, transaction_information} | direct_debit.transaction_information
+                ]
+            }
+
+          {:error, e} ->
+            {:error, e}
+        end
+    end
   end
 
   @doc false
-  def to_xml(%__MODULE__{} = initiation) do
-    {info, nb_of_txs, crtl_sum} =
-      do_to_xml({initiation.payment_information, 0, 0.0}, initiation.transaction_information)
+  @spec to_xml(ExSepa.CustomerDirectDebitInitiationV08.t()) :: String.t()
+  def to_xml(%__MODULE__{} = direct_debit) do
+    {info, number_of_transactions, control_sum} =
+      do_to_xml({direct_debit.payment_information, 0, 0.0}, direct_debit.transaction_information)
 
     xb_document(
       element(:CstmrDrctDbtInitn, nil, [
-        initiation.group_header |> ExSepa.GroupHeader.to_xml(nb_of_txs, crtl_sum)
+        direct_debit.group_header
+        |> ExSepa.GroupHeader.to_xml(number_of_transactions, control_sum)
         | info
       ])
     )
   end
 
-  defp do_to_xml({[], nb_of_txs, crtl_sum}, _), do: {[], nb_of_txs, crtl_sum}
+  defp do_to_xml({[], number_of_transactions, control_sum}, _),
+    do: {[], number_of_transactions, control_sum}
 
   defp do_to_xml(
-         {[%ExSepa.PaymentInformation{} = first | rest], nb_of_txs, crtl_sum},
+         {[%ExSepa.PaymentInformation{} = first | rest], number_of_transactions, control_sum},
          list
        ) do
-    drct_dbt_tx_inf = Enum.filter(list, fn {x, _y} -> x == first.payment_id end)
-    count = length(drct_dbt_tx_inf)
+    transaction_information = Enum.filter(list, fn {x, _y} -> x == first.payment_id end)
+    count = length(transaction_information)
 
     sum =
-      Enum.reduce(drct_dbt_tx_inf, 0, fn {_k, %ExSepa.TransactionInformation{} = v}, acc ->
+      Enum.reduce(transaction_information, 0, fn {_k, %ExSepa.TransactionInformation{} = v},
+                                                 acc ->
         v.amount + acc
       end) * 1.0
 
-    {new_rest, new_nb_of_txs, new_crtl_sum} =
-      do_to_xml({rest, nb_of_txs + count, crtl_sum + sum}, list)
+    {new_rest, new_number_of_transactions, new_control_sum} =
+      do_to_xml({rest, number_of_transactions + count, control_sum + sum}, list)
 
     {[
        ExSepa.PaymentInformation.to_xml(
          first,
-         ExSepa.TransactionInformation.to_xml(drct_dbt_tx_inf),
+         ExSepa.TransactionInformation.to_xml(transaction_information),
          count,
          sum
        )
        | new_rest
-     ], new_nb_of_txs, new_crtl_sum}
+     ], new_number_of_transactions, new_control_sum}
   end
 
   defp xb_document(content) do

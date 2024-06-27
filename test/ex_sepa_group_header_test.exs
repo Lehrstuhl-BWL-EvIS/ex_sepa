@@ -3,7 +3,7 @@ defmodule ExSepaGroupHeaderTest do
   doctest ExSepa.GroupHeader
 
   describe "ExSepa.GroupHeader new" do
-    test "Generate a new direct debit group header" do
+    test "Generate a new direct debit group header - ok" do
       assert ExSepa.GroupHeader.new("Msg-ID-000100", "Ein Fußballclub") ==
                {:ok,
                 %ExSepa.GroupHeader{
@@ -57,12 +57,14 @@ defmodule ExSepaGroupHeaderTest do
 
     test "latin character set 1" do
       assert ExSepa.GroupHeader.new("MSG-ID-0001", "Stéfan Göttsching") ==
-               {:error, "These characters are not part of the Latin character set: é"}
+               {:error,
+                "initiating_party_name - These characters are not part of the authorised Latin character set: é"}
     end
 
     test "latin character set 2" do
       assert ExSepa.GroupHeader.new("MSG-§-0001", "Stefan Göttsching") ==
-               {:error, "These characters are not part of the Latin character set: §"}
+               {:error,
+                "msg_id - These characters are not part of the authorised Latin character set: §"}
     end
   end
 end
