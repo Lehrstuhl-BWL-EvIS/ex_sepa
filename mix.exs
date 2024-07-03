@@ -38,6 +38,11 @@ defmodule ExSepa.MixProject do
       # https://github.com/rrrene/credo
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
 
+      # Library to parse (and generate) XML documents (Erlang)
+      # https://hex.pm/packages/erlsom
+      # https://github.com/willemdj/erlsom
+      {:erlsom, github: "willemdj/erlsom"},
+
       # Generates the documentation for the entire project
       # https://hexdocs.pm/ex_doc/readme.html
       # https://github.com/elixir-lang/ex_doc

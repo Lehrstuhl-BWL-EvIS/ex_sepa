@@ -23,11 +23,9 @@ defmodule ExSepa.GroupHeader do
   @spec new(String.t(), String.t()) :: {:error, String.t()} | {:ok, __MODULE__.t()}
   def new(msg_id, initiating_party_name)
       when is_binary(msg_id) and is_binary(initiating_party_name) do
-    with :ok <- Validation.max_text(:msg_id, msg_id, 35),
-         :ok <- Validation.max_text(:initiating_party_name, initiating_party_name, 70) do
-      {:ok, struct(__MODULE__, msg_id: msg_id, initiating_party_name: initiating_party_name)}
-    else
-      {:error, e} -> {:error, e}
+    with :ok <- Validation.max_35_text(:msg_id, msg_id),
+         :ok <- Validation.max_70_text(:initiating_party_name, initiating_party_name) do
+      {:ok, %__MODULE__{msg_id: msg_id, initiating_party_name: initiating_party_name}}
     end
   end
 

@@ -94,7 +94,7 @@ defmodule ExSepaPaymentInformationTest do
                "CIDZZZ00000001",
                creditor_name,
                creditor_iban
-             ) == {:error, "payment_id: maximum length of 35 characters"}
+             ) == {:error, "payment_id: Maximum length of 35 characters"}
     end
 
     test "fail: wrong payment_id 2" do
@@ -155,7 +155,7 @@ defmodule ExSepaPaymentInformationTest do
                creditor_id,
                creditor_name,
                creditor_iban
-             ) == {:error, "creditor_id: maximum length of 35 characters"}
+             ) == {:error, "creditor_id: Maximum length of 35 characters"}
     end
 
     test "fail: wrong creditor_id 2" do
@@ -191,7 +191,7 @@ defmodule ExSepaPaymentInformationTest do
                "CIDZZZ00000001",
                creditor_name,
                creditor_iban
-             ) == {:error, "creditor_name: maximum length of 70 characters"}
+             ) == {:error, "creditor_name: Maximum length of 70 characters"}
     end
 
     test "fail: wrong Name 2" do

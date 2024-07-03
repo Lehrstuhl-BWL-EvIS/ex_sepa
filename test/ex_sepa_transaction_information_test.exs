@@ -108,6 +108,37 @@ defmodule ExSepaTransactionInformationTest do
                 }}
     end
 
+    test "with BIC and remittance_information - fail on remittance_information" do
+      endtoendid = Faker.Gov.Us.ssn()
+      amount = Faker.Commerce.price()
+      mndt_id = Faker.Gov.Us.ein()
+      mndt_date = Faker.Date.backward(Faker.Random.Elixir.random_between(60, 900))
+      debtor_name = Faker.Person.name()
+      debtor_iban = Faker.Code.Iban.iban(get_country_codes())
+
+      [debtor_bic | _] =
+        Regex.run(
+          ~r/[A-Z0-9]{4,4}[A-Z]{2,2}[A-Z0-9]{2,2}([A-Z0-9]{3,3}){0,1}/,
+          Faker.Util.format("%#{Faker.random_between(8, 11)}A")
+        )
+
+      # <> "&"
+      remittance_information = "&" <> Faker.Beer.yeast()
+
+      assert ExSepa.TransactionInformation.new(
+               endtoendid,
+               amount,
+               mndt_id,
+               mndt_date,
+               debtor_name,
+               debtor_iban,
+               debtor_bic,
+               remittance_information
+             ) ==
+               {:error,
+                "remittance_information: These characters are not part of the pattern test: &"}
+    end
+
     test "endtoendid - fail UTF-8" do
       endtoendid = 951_753
       amount = Faker.Commerce.price()
@@ -165,7 +196,7 @@ defmodule ExSepaTransactionInformationTest do
                debtor_name,
                debtor_iban
              ) ==
-               {:error, "end_to_end_id: maximum length of 35 characters"}
+               {:error, "end_to_end_id: Maximum length of 35 characters"}
     end
 
     test "amount - fail UTF-8" do
@@ -298,7 +329,7 @@ defmodule ExSepaTransactionInformationTest do
                debtor_name,
                debtor_iban
              ) ==
-               {:error, "mandate_id: maximum length of 35 characters"}
+               {:error, "mandate_id: Maximum length of 35 characters"}
     end
 
     test "mndt_date - fail UTF-8" do
@@ -338,7 +369,7 @@ defmodule ExSepaTransactionInformationTest do
              ) == {:error, "Date must be in the past."}
     end
 
-    test "debtor_name - fail UTF-8" do
+    test "fail: debtor_name UTF-8" do
       endtoendid = Faker.Gov.Us.ssn()
       amount = Faker.Commerce.price()
       mndt_id = Faker.Gov.Us.ein()
@@ -357,7 +388,7 @@ defmodule ExSepaTransactionInformationTest do
                {:error, "Parameters must be strings. - debtor_name: must be UTF-8 encoded binary"}
     end
 
-    test "debtor_name - fail length" do
+    test "fail: debtor_name length" do
       endtoendid = Faker.Gov.Us.ssn()
       amount = Faker.Commerce.price()
       mndt_id = Faker.Gov.Us.ein()
@@ -376,10 +407,67 @@ defmodule ExSepaTransactionInformationTest do
                debtor_name,
                debtor_iban
              ) ==
-               {:error, "debtor_name: maximum length of 70 characters"}
+               {:error, "debtor_name: Maximum length of 70 characters"}
     end
 
-    test "debtor_iban - fail invalid" do
+    test "fail: debtor_name start with /" do
+      endtoendid = Faker.Gov.Us.ssn()
+      amount = Faker.Commerce.price()
+      mndt_id = Faker.Gov.Us.ein()
+      mndt_date = Faker.Date.backward(Faker.Random.Elixir.random_between(60, 900))
+      debtor_name = "/" <> Faker.Person.name()
+      debtor_iban = Faker.Code.Iban.iban(get_country_codes())
+
+      assert ExSepa.TransactionInformation.new(
+               endtoendid,
+               amount,
+               mndt_id,
+               mndt_date,
+               debtor_name,
+               debtor_iban
+             ) ==
+               {:error, "debtor_name: Text field must not begin with '/'"}
+    end
+
+    test "fail: debtor_name ends with /" do
+      endtoendid = Faker.Gov.Us.ssn()
+      amount = Faker.Commerce.price()
+      mndt_id = Faker.Gov.Us.ein()
+      mndt_date = Faker.Date.backward(Faker.Random.Elixir.random_between(60, 900))
+      debtor_name = Faker.Person.name() <> "/"
+      debtor_iban = Faker.Code.Iban.iban(get_country_codes())
+
+      assert ExSepa.TransactionInformation.new(
+               endtoendid,
+               amount,
+               mndt_id,
+               mndt_date,
+               debtor_name,
+               debtor_iban
+             ) ==
+               {:error, "debtor_name: Text field must not end with '/'"}
+    end
+
+    test "fail: debtor_name contains //" do
+      endtoendid = Faker.Gov.Us.ssn()
+      amount = Faker.Commerce.price()
+      mndt_id = Faker.Gov.Us.ein()
+      mndt_date = Faker.Date.backward(Faker.Random.Elixir.random_between(60, 900))
+      debtor_name = Faker.Person.first_name() <> " // " <> Faker.Person.last_name()
+      debtor_iban = Faker.Code.Iban.iban(get_country_codes())
+
+      assert ExSepa.TransactionInformation.new(
+               endtoendid,
+               amount,
+               mndt_id,
+               mndt_date,
+               debtor_name,
+               debtor_iban
+             ) ==
+               {:error, "debtor_name: Text field must not contain '//'"}
+    end
+
+    test "fail: debtor_iban invalid" do
       endtoendid = Faker.Gov.Us.ssn()
       amount = Faker.Commerce.price()
       mndt_id = Faker.Gov.Us.ein()
@@ -406,7 +494,7 @@ defmodule ExSepaTransactionInformationTest do
              )
     end
 
-    test "debtor_iban - fail UTF-8" do
+    test "fail: debtor_iban UTF-8" do
       endtoendid = Faker.Gov.Us.ssn()
       amount = Faker.Commerce.price()
       mndt_id = Faker.Gov.Us.ein()
@@ -503,7 +591,7 @@ defmodule ExSepaTransactionInformationTest do
                debtor_bic,
                remittance_information
              ) ==
-               {:error, "remittance_information: maximum length of 140 characters"}
+               {:error, "remittance_information: Maximum length of 140 characters"}
     end
 
     test "remittance_information - fail - UTF-8" do

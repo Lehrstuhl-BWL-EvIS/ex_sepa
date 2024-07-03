@@ -85,14 +85,14 @@ defmodule ExSepa.TransactionInformation do
       when is_binary(end_to_end_id) and is_float(amount) and is_binary(mandate_id) and
              is_binary(debtor_name) and is_binary(debtor_iban) and is_binary(debtor_bic) and
              is_binary(remittance_information) do
-    with :ok <- Validation.max_text(:end_to_end_id, end_to_end_id, 35),
+    with :ok <- Validation.max_35_text(:end_to_end_id, end_to_end_id),
          :ok <- Validation.amount(amount),
-         :ok <- Validation.max_text(:mandate_id, mandate_id, 35),
+         :ok <- Validation.max_35_text(:mandate_id, mandate_id),
          :ok <- Validation.date(mandate_signing_date),
-         :ok <- Validation.max_text(:debtor_name, debtor_name, 70),
+         :ok <- Validation.max_70_text(:debtor_name, debtor_name),
          :ok <- Validation.iban(debtor_iban),
          :ok <- Validation.bic(debtor_bic),
-         :ok <- Validation.max_text(:remittance_information, remittance_information, 140) do
+         :ok <- Validation.optional_max_140_text(:remittance_information, remittance_information) do
       {:ok,
        %__MODULE__{
          end_to_end_id: end_to_end_id,
@@ -104,8 +104,6 @@ defmodule ExSepa.TransactionInformation do
          debtor_bic: debtor_bic,
          remittance_information: remittance_information
        }}
-    else
-      {:error, e} -> {:error, e}
     end
   end
 
@@ -175,7 +173,15 @@ defmodule ExSepa.TransactionInformation do
   defp do_to_xml(%__MODULE__{} = transaction_information) do
     element(:DrctDbtTxInf, nil, [
       element(:PmtId, nil, [
-        element(:EndToEndId, nil, transaction_information.end_to_end_id)
+        element(
+          :EndToEndId,
+          nil,
+          if transaction_information.end_to_end_id |> String.trim() == "" do
+            "NOTPROVDED"
+          else
+            transaction_information.end_to_end_id |> String.trim()
+          end
+        )
       ]),
       element(:InstdAmt, %{Ccy: "EUR"}, transaction_information.amount),
       element(:DrctDbtTx, nil, [
@@ -186,7 +192,7 @@ defmodule ExSepa.TransactionInformation do
       ]),
       element(:DbtrAgt, nil, [
         element(:FinInstnId, nil, [
-          if transaction_information.debtor_bic == "" do
+          if transaction_information.debtor_bic |> String.trim() == "" do
             element(:Othr, nil, [
               element(:Id, nil, "NOTPROVIDED")
             ])

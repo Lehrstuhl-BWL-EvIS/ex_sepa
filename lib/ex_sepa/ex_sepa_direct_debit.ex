@@ -66,9 +66,7 @@ defmodule ExSepa.DirectDebit do
           String.t(),
           String.t(),
           atom()
-        ) ::
-          {:error, String.t()}
-          | ExSepa.CustomerDirectDebitInitiationV08.t()
+        ) :: ExSepa.CustomerDirectDebitInitiationV08.t() | {:error, String.t()}
   def add_payment_information(
         %ExSepa.CustomerDirectDebitInitiationV08{} = initiation,
         payment_id,
@@ -138,19 +136,7 @@ defmodule ExSepa.DirectDebit do
     )
   end
 
-  @doc false
-  def add_transaction_information(
-        %ExSepa.CustomerDirectDebitInitiationV08{} = initiation,
-        payment_id,
-        %ExSepa.TransactionInformation{} = transaction_information
-      )
-      when is_binary(payment_id) do
-    %ExSepa.CustomerDirectDebitInitiationV08{
-      initiation
-      | transaction_information: [{payment_id, transaction_information}]
-    }
-  end
-
+  @spec to_xml(ExSepa.CustomerDirectDebitInitiationV08.t()) :: String.t()
   @doc """
   Returns the data in the ISO 20022 XML message standard.
   """

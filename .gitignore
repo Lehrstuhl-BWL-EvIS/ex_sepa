@@ -153,3 +153,4 @@ ex_sepa-*.tar
 
 # Temporary files, for example, from tests.
 /tmp/
+pain.test.xml

@@ -68,10 +68,10 @@ defmodule ExSepa.PaymentInformation do
       when is_binary(payment_id) and is_binary(creditor_name) and is_binary(creditor_iban) and
              is_binary(creditor_bic) and is_binary(creditor_id) and
              sequence_type in @sequence_type3_code_atom do
-    with :ok <- Validation.max_text(:payment_id, payment_id, 35),
+    with :ok <- Validation.max_35_text(:payment_id, payment_id),
          :ok <- Validation.due_date(due_date),
-         :ok <- Validation.max_text(:creditor_id, creditor_id, 35),
-         :ok <- Validation.max_text(:creditor_name, creditor_name, 70),
+         :ok <- Validation.max_35_text(:creditor_id, creditor_id),
+         :ok <- Validation.max_70_text(:creditor_name, creditor_name),
          :ok <- Validation.iban(creditor_iban),
          :ok <- Validation.bic(creditor_bic) do
       {:ok,

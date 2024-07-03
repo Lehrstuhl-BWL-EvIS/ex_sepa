@@ -4,7 +4,7 @@ defmodule ExSepa.Validation do
   @doc """
   Latin character set used for SEPA messages
   """
-  @spec in_language(String.t()) :: :ok | {:error, String.t()}
+  @spec in_language(String.t()) :: {:ok, String.t()} | {:error, String.t()}
   def in_language(string) do
     new_string =
       string
@@ -20,38 +20,51 @@ defmodule ExSepa.Validation do
       |> String.replace("$", ".")
       |> String.replace("%", ".")
 
-    case do_in_language(new_string) do
-      "" ->
-        :ok
-
-      e ->
-        {:error, "These characters are not part of the authorised Latin character set: #{e}"}
+    with :ok <-
+           do_pattern_test(
+             new_string,
+             ~r/[a-zA-Z0-9|\x2F|\x2D|\x3F|\x3A|\x28|\x29|\x2E|\x20|\x2C|\x27|\x2B]+/
+           ) do
+      {:ok, new_string}
     end
   end
 
-  defp do_in_language(string, acc \\ "")
-  defp do_in_language("", acc), do: acc
+  def do_pattern_test(string, pattern, acc \\ "")
 
-  defp do_in_language(string, acc) do
+  def do_pattern_test("", _pattern, acc) do
+    if acc == "",
+      do: :ok,
+      else: {:error, "These characters are not part of the pattern test: #{acc}"}
+  end
+
+  def do_pattern_test(string, pattern, acc) do
     sl = String.length(string)
-    run_string = Regex.run(~r/[a-zA-Z-\s(\/?:.,'+)\d]+/, string)
+    run_string = Regex.run(pattern, string)
 
     if run_string == nil do
-      do_in_language(String.slice(string, 1, sl - 1), acc <> String.at(string, 0))
+      do_pattern_test(String.slice(string, 1, sl - 1), pattern, acc <> String.at(string, 0))
     else
       new_string = Enum.join(run_string)
       nsl = String.length(new_string)
       # IO.puts("string: #{string}; sl: #{sl}; new: #{new_string}; nsl: #{nsl}")
 
       if sl == nsl do
-        do_in_language("", acc)
+        do_pattern_test("", pattern, acc)
       else
-        do_in_language(String.slice(string, nsl + 1, sl - nsl - 1), acc <> String.at(string, nsl))
+        if new_string == String.slice(string, 0..(nsl - 1)) do
+          do_pattern_test(
+            String.slice(string, nsl + 1, sl - nsl - 1),
+            pattern,
+            acc <> String.at(string, nsl)
+          )
+        else
+          do_pattern_test(new_string, pattern, acc <> String.at(string, 0))
+        end
       end
     end
   end
 
-  @spec text([{atom(), any()}], String.t()) :: :ok | {:error, String.t()}
+  @spec text(keyword(binary())) :: :ok | {:error, String.t()}
   def text(text_tuple_list, pre_error_text \\ "") do
     case do_text(text_tuple_list, pre_error_text) do
       "" -> :ok
@@ -67,47 +80,130 @@ defmodule ExSepa.Validation do
     do_text(
       rest,
       acc <>
-        case real_text(ato, tex) do
+        case real_text(tex) do
           :ok ->
             ""
 
           {:error, e} ->
-            " - " <> e
+            " - #{ato}: " <> e
         end
     )
   end
 
-  @spec real_text(atom(), String.t()) :: :ok | {:error, String.t()}
-  def real_text(element, text) do
-    case is_binary(text) do
-      true ->
-        case String.valid?(text) do
-          true ->
-            case in_language(text) do
-              :ok -> :ok
-              {:error, e} -> {:error, "#{element} - #{e}"}
-            end
-
-          _ ->
-            {:error, "#{element}: must be UTF-8 encoded binary"}
-        end
-
-      _ ->
-        {:error, "#{element}: must be UTF-8 encoded binary"}
+  @spec real_text(String.t()) :: :ok | {:error, String.t()}
+  def real_text(text) do
+    with true <- is_binary(text),
+         true <- String.valid?(text) do
+      :ok
+    else
+      false ->
+        {:error, "must be UTF-8 encoded binary"}
     end
   end
 
-  @spec max_text(atom(), String.t(), integer()) :: :ok | {:error, String.t()}
-  def max_text(element, text, max_length) do
-    case real_text(element, text) do
-      :ok ->
-        case String.length(text) do
-          x when x <= max_length -> :ok
-          _ -> {:error, "#{element}: maximum length of #{max_length} characters"}
-        end
+  defp character_set_start(text) do
+    if text |> String.starts_with?("/"),
+      do: {:error, "Text field must not begin with '/'"},
+      else: :ok
+  end
 
+  defp character_set_end(text) do
+    if text |> String.ends_with?("/"),
+      do: {:error, "Text field must not end with '/'"},
+      else: :ok
+  end
+
+  defp character_set_contain(text) do
+    if text |> String.contains?("//"),
+      do: {:error, "Text field must not contain '//'"},
+      else: :ok
+  end
+
+  @spec min_max_text(String.t(), integer(), integer()) :: :ok | {:error, String.t()}
+  defp min_max_text(text, min_length, max_length) do
+    case String.length(text) do
+      x when x < min_length -> {:error, "Minimum length of #{min_length} characters"}
+      x when x > max_length -> {:error, "Maximum length of #{max_length} characters"}
+      _ -> :ok
+    end
+  end
+
+  def in_latin_character_set(text) do
+    case in_language(text) do
+      {:ok, language_text} -> {:ok, language_text}
+      {:error, e} -> {:error, "#{e}"}
+    end
+  end
+
+  @spec max_35_text(atom(), String.t()) :: :ok | {:error, String.t()}
+  def max_35_text(element, text) do
+    with :ok <- real_text(text),
+         new_text = text |> String.trim(),
+         :ok <- min_max_text(new_text, 1, 35),
+         :ok <-
+           do_pattern_test(
+             new_text,
+             ~r/[a-zA-Z0-9|\x2F|\x2D|\x3F|\x3A|\x28|\x29|\x2E|\x20|\x2C|\x27|\x2B]{1,35}/
+           ),
+         :ok <- character_set_start(new_text),
+         :ok <- character_set_end(new_text),
+         :ok <- character_set_contain(new_text) do
+      :ok
+    else
       {:error, e} ->
-        {:error, e}
+        {:error, "#{element}: #{e}"}
+    end
+  end
+
+  @spec max_70_text(atom(), String.t()) :: :ok | {:error, String.t()}
+  def max_70_text(element, text) do
+    with :ok <- real_text(text),
+         new_text = text |> String.trim(),
+         :ok <- min_max_text(new_text, 1, 70),
+         :ok <-
+           do_pattern_test(
+             new_text,
+             ~r/[a-zA-Z0-9|\x2F|\x2D|\x3F|\x3A|\x28|\x29|\x2E|\x20|\x2C|\x27|\x2B]{1,70}/
+           ),
+         :ok <- character_set_start(new_text),
+         :ok <- character_set_end(new_text),
+         :ok <- character_set_contain(new_text) do
+      :ok
+    else
+      {:error, e} ->
+        {:error, "#{element}: #{e}"}
+    end
+  end
+
+  @spec max_140_text(atom(), String.t()) :: :ok | {:error, String.t()}
+  def max_140_text(element, text) do
+    with :ok <- real_text(text),
+         new_text = text |> String.trim(),
+         :ok <- min_max_text(new_text, 1, 140),
+         :ok <-
+           do_pattern_test(
+             new_text,
+             ~r/[a-zA-Z0-9|\x2F|\x2D|\x3F|\x3A|\x28|\x29|\x2E|\x20|\x2C|\x27|\x2B]{1,140}/
+           ),
+         :ok <- character_set_start(new_text),
+         :ok <- character_set_end(new_text),
+         :ok <- character_set_contain(new_text) do
+      :ok
+    else
+      {:error, e} ->
+        {:error, "#{element}: #{e}"}
+
+      _ ->
+        :unexpected_error
+    end
+  end
+
+  @spec optional_max_140_text(atom(), String.t()) :: :ok | {:error, String.t()}
+  def optional_max_140_text(element, text) do
+    if text |> String.trim() == "" do
+      :ok
+    else
+      max_140_text(element, text)
     end
   end
 
