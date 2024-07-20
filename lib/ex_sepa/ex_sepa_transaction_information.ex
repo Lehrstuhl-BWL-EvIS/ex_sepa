@@ -26,6 +26,16 @@ defmodule ExSepa.TransactionInformation do
     * `:debtor_bic` - BIC code of the Debtor PSP.
     * `:remittance_information` - The Remittance information sent by the Creditor to the Debtor in the Collection (maximum length of 140 characters).
   """
+  @type t :: %__MODULE__{
+          end_to_end_id: String.t(),
+          amount: float(),
+          mandate_id: String.t(),
+          mandate_signing_date: Date.t(),
+          debtor_name: String.t(),
+          debtor_iban: String.t(),
+          debtor_bic: String.t(),
+          remittance_information: String.t()
+        }
   defstruct [
     :end_to_end_id,
     :amount,
@@ -37,62 +47,27 @@ defmodule ExSepa.TransactionInformation do
     remittance_information: ""
   ]
 
-  @type t :: %__MODULE__{
-          end_to_end_id: String.t(),
-          amount: float(),
-          mandate_id: String.t(),
-          mandate_signing_date: Date.t(),
-          debtor_name: String.t(),
-          debtor_iban: String.t(),
-          debtor_bic: String.t(),
-          remittance_information: String.t()
-        }
-
-  @spec new(
-          String.t(),
-          float(),
-          String.t(),
-          Date.t(),
-          String.t(),
-          String.t(),
-          String.t(),
-          String.t()
-        ) ::
-          {:error, String.t()} | {:ok, ExSepa.TransactionInformation.t()}
-
   @doc false
+  @spec new(map()) :: {:error, String.t()} | {:ok, __MODULE__.t()}
   def new(
-        end_to_end_id,
-        amount,
-        mandate_id,
-        mandate_signing_date,
-        debtor_name,
-        debtor_iban,
-        debtor_bic \\ "",
-        remittance_information \\ ""
-      )
-
-  def new(
-        end_to_end_id,
-        amount,
-        mandate_id,
-        %Date{} = mandate_signing_date,
-        debtor_name,
-        debtor_iban,
-        debtor_bic,
-        remittance_information
+        %{
+          "end_to_end_id" => end_to_end_id,
+          "amount" => amount,
+          "mandate_id" => mandate_id,
+          "mandate_signing_date" => %Date{} = mandate_signing_date,
+          "debtor_name" => debtor_name,
+          "debtor_iban" => debtor_iban
+        } = transaction_information
       )
       when is_binary(end_to_end_id) and is_float(amount) and is_binary(mandate_id) and
-             is_binary(debtor_name) and is_binary(debtor_iban) and is_binary(debtor_bic) and
-             is_binary(remittance_information) do
+             is_binary(debtor_name) and is_binary(debtor_iban) do
     with :ok <- Validation.max_35_text(:end_to_end_id, end_to_end_id),
          :ok <- Validation.amount(amount),
          :ok <- Validation.max_35_text(:mandate_id, mandate_id),
          :ok <- Validation.date(mandate_signing_date),
          :ok <- Validation.max_70_text(:debtor_name, debtor_name),
          :ok <- Validation.iban(debtor_iban),
-         :ok <- Validation.bic(debtor_bic),
-         :ok <- Validation.optional_max_140_text(:remittance_information, remittance_information) do
+         {:ok, optional_data} <- get_optional_data(transaction_information) do
       {:ok,
        %__MODULE__{
          end_to_end_id: end_to_end_id,
@@ -101,72 +76,110 @@ defmodule ExSepa.TransactionInformation do
          mandate_signing_date: mandate_signing_date,
          debtor_name: debtor_name,
          debtor_iban: debtor_iban,
-         debtor_bic: debtor_bic,
-         remittance_information: remittance_information
+         debtor_bic: optional_data.debtor_bic,
+         remittance_information: optional_data.remittance_information
        }}
     end
   end
 
   def new(
-        end_to_end_id,
-        amount,
-        mandate_id,
-        _mandate_signing_date,
-        debtor_name,
-        debtor_iban,
-        debtor_bic,
-        remittance_information
+        %{
+          "end_to_end_id" => end_to_end_id,
+          "amount" => amount,
+          "mandate_id" => mandate_id,
+          "mandate_signing_date" => _mandate_signing_date,
+          "debtor_name" => debtor_name,
+          "debtor_iban" => debtor_iban
+        } = _transaction_information
       )
       when is_binary(end_to_end_id) and is_float(amount) and is_binary(mandate_id) and
-             is_binary(debtor_name) and is_binary(debtor_iban) and is_binary(debtor_bic) and
-             is_binary(remittance_information) do
+             is_binary(debtor_name) and is_binary(debtor_iban) do
     {:error, "mandate_signing_date must be a date"}
   end
 
   def new(
-        end_to_end_id,
-        _amount,
-        mandate_id,
-        _mandate_signing_date,
-        debtor_name,
-        debtor_iban,
-        debtor_bic,
-        remittance_information
+        %{
+          "end_to_end_id" => end_to_end_id,
+          "amount" => _amount,
+          "mandate_id" => mandate_id,
+          "mandate_signing_date" => _mandate_signing_date,
+          "debtor_name" => debtor_name,
+          "debtor_iban" => debtor_iban
+        } = _transaction_information
       )
       when is_binary(end_to_end_id) and is_binary(mandate_id) and
-             is_binary(debtor_name) and is_binary(debtor_iban) and is_binary(debtor_bic) and
-             is_binary(remittance_information) do
+             is_binary(debtor_name) and is_binary(debtor_iban) do
     {:error, "amount must be a float(18.2)"}
   end
 
   def new(
-        end_to_end_id,
-        _amount,
-        mandate_id,
-        _mandate_signing_date,
-        debtor_name,
-        debtor_iban,
-        debtor_bic,
-        remittance_information
+        %{
+          "end_to_end_id" => end_to_end_id,
+          "amount" => _amount,
+          "mandate_id" => mandate_id,
+          "mandate_signing_date" => _mandate_signing_date,
+          "debtor_name" => debtor_name,
+          "debtor_iban" => debtor_iban
+        } = _transaction_information
       ) do
     Validation.text(
       [
         {:end_to_end_id, end_to_end_id},
         {:mandate_id, mandate_id},
         {:debtor_name, debtor_name},
-        {:debtor_iban, debtor_iban},
-        {:debtor_bic, debtor_bic},
-        {:remittance_information, remittance_information}
+        {:debtor_iban, debtor_iban}
       ],
       "Parameters must be strings."
     )
   end
 
+  defp get_optional_data(transaction_information) do
+    with {:ok, debtor_bic} <- get_creditor_bic(transaction_information),
+         {:ok, remittance_information} <- get_remittance_information(transaction_information),
+         :ok <- Validation.bic(debtor_bic),
+         :ok <- Validation.optional_max_140_text(:remittance_information, remittance_information) do
+      {:ok,
+       %{
+         debtor_bic: debtor_bic,
+         remittance_information: remittance_information
+       }}
+    end
+  end
+
+  defp get_creditor_bic(transaction_information) do
+    case Map.fetch(transaction_information, "debtor_bic") do
+      {:ok, debtor_bic} when is_binary(debtor_bic) ->
+        {:ok, debtor_bic}
+
+      {:ok, debtor_bic} ->
+        Validation.text([{:debtor_bic, debtor_bic}], "Parameters must be strings.")
+
+      :error ->
+        {:ok, ""}
+    end
+  end
+
+  defp get_remittance_information(transaction_information) do
+    case Map.fetch(transaction_information, "remittance_information") do
+      {:ok, remittance_information} when is_binary(remittance_information) ->
+        {:ok, remittance_information}
+
+      {:ok, remittance_information} ->
+        Validation.text(
+          [{:remittance_information, remittance_information}],
+          "Parameters must be strings."
+        )
+
+      :error ->
+        {:ok, ""}
+    end
+  end
+
   @doc false
-  @spec to_xml([{any(), __MODULE__.t()}]) :: list()
+  @spec to_xml([__MODULE__.t()]) :: list()
   def to_xml([]), do: []
 
-  def to_xml([{_, %__MODULE__{} = first} | rest]) do
+  def to_xml([%__MODULE__{} = first | rest]) do
     [do_to_xml(first) | to_xml(rest)]
   end
 

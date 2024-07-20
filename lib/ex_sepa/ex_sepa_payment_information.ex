@@ -20,8 +20,9 @@ defmodule ExSepa.PaymentInformation do
     * `:creditor_id` - Unique and unambiguous identification of a party (maximum length of 35 characters.).
     * `:creditor_name` - The Name of the Creditor (maximum length of 70 characters).
     * `:creditor_iban` - The account number (IBAN) of the Creditor.
-    * `:creditor_bic` - BIC code of the Creditor PSP.
+    * `:creditor_bic` - OPTIONAL: BIC code of the Creditor PSP.
     * `:sequence_type` - Identifies the direct debit sequence, such as first, recurrent, final or one-off ("FRST", "RCUR", "FNAL" or "OOFF").
+    * `:transaction_information` - .
   """
   @type t :: %__MODULE__{
           payment_id: String.t(),
@@ -30,50 +31,40 @@ defmodule ExSepa.PaymentInformation do
           creditor_name: String.t(),
           creditor_iban: String.t(),
           creditor_bic: String.t(),
-          sequence_type: atom()
+          sequence_type: atom(),
+          transaction_information: list(ExSepa.TransactionInformation.t())
         }
 
   defstruct [
     :payment_id,
     :due_date,
+    :creditor_id,
     :creditor_name,
     :creditor_iban,
-    :creditor_bic,
-    :creditor_id,
-    :sequence_type
+    creditor_bic: "",
+    sequence_type: :OneOff,
+    transaction_information: []
   ]
 
   @doc false
-  @spec new(String.t(), Date.t(), String.t(), String.t(), String.t(), String.t(), atom()) ::
-          {:error, String.t()} | {:ok, __MODULE__.t()}
+  @spec new(map()) :: {:error, String.t()} | {:ok, __MODULE__.t()}
   def new(
-        payment_id,
-        due_date,
-        creditor_id,
-        creditor_name,
-        creditor_iban,
-        creditor_bic \\ "",
-        sequence_type \\ :OneOff
+        %{
+          "payment_id" => payment_id,
+          "due_date" => %Date{} = due_date,
+          "creditor_id" => creditor_id,
+          "creditor_name" => creditor_name,
+          "creditor_iban" => creditor_iban
+        } = payment_information
       )
-
-  def new(
-        payment_id,
-        %Date{} = due_date,
-        creditor_id,
-        creditor_name,
-        creditor_iban,
-        creditor_bic,
-        sequence_type
-      )
-      when is_binary(payment_id) and is_binary(creditor_name) and is_binary(creditor_iban) and
-             is_binary(creditor_bic) and is_binary(creditor_id) and
-             sequence_type in @sequence_type3_code_atom do
+      when is_binary(payment_id) and is_binary(creditor_id) and
+             is_binary(creditor_name) and is_binary(creditor_iban) do
     with :ok <- Validation.max_35_text(:payment_id, payment_id),
          :ok <- Validation.due_date(due_date),
          :ok <- Validation.max_35_text(:creditor_id, creditor_id),
          :ok <- Validation.max_70_text(:creditor_name, creditor_name),
          :ok <- Validation.iban(creditor_iban),
-         :ok <- Validation.bic(creditor_bic) do
+         {:ok, optional_data} <- get_optional_data(payment_information) do
       {:ok,
        %__MODULE__{
          payment_id: payment_id,
@@ -81,85 +72,101 @@ defmodule ExSepa.PaymentInformation do
          creditor_id: creditor_id,
          creditor_name: creditor_name,
          creditor_iban: creditor_iban,
-         creditor_bic: creditor_bic,
-         sequence_type: sequence_type
+         creditor_bic: optional_data.creditor_bic,
+         sequence_type: optional_data.sequence_type,
+         transaction_information: optional_data.transaction_information
        }}
-    else
-      {:error, e} -> {:error, e}
     end
   end
 
   def new(
-        payment_id,
-        _due_date,
-        creditor_id,
-        creditor_name,
-        creditor_iban,
-        creditor_bic,
-        sequence_type
+        %{
+          "payment_id" => payment_id,
+          "due_date" => _due_date,
+          "creditor_id" => creditor_id,
+          "creditor_name" => creditor_name,
+          "creditor_iban" => creditor_iban
+        } = _payment_information
       )
-      when is_binary(payment_id) and is_binary(creditor_name) and is_binary(creditor_iban) and
-             is_binary(creditor_bic) and is_binary(creditor_id) and
-             sequence_type in @sequence_type3_code_atom do
+      when is_binary(payment_id) and is_binary(creditor_id) and
+             is_binary(creditor_name) and is_binary(creditor_iban) do
     {:error, "Parameter due_date must be a date"}
   end
 
   def new(
-        payment_id,
-        _due_date,
-        creditor_id,
-        creditor_name,
-        creditor_iban,
-        creditor_bic,
-        sequence_type
-      )
-      when is_binary(payment_id) and is_binary(creditor_name) and is_binary(creditor_iban) and
-             is_binary(creditor_bic) and is_binary(creditor_id) and is_atom(sequence_type) do
-    {:error,
-     "Parameter sequence_type must be an atom :#{Enum.join(@sequence_type3_code_atom, ", :")}"}
-  end
-
-  def new(
-        payment_id,
-        _due_date,
-        creditor_id,
-        creditor_name,
-        creditor_iban,
-        creditor_bic,
-        sequence_type
-      )
-      when is_binary(payment_id) and is_binary(creditor_name) and is_binary(creditor_iban) and
-             is_binary(creditor_bic) and is_binary(creditor_id) and
-             is_atom(sequence_type) == false do
-    {:error,
-     "Parameter sequence_type must be an atom :#{Enum.join(@sequence_type3_code_atom, ", :")}"}
-  end
-
-  def new(
-        payment_id,
-        _due_date,
-        creditor_id,
-        creditor_name,
-        creditor_iban,
-        creditor_bic,
-        _sequence_type
+        %{
+          "payment_id" => payment_id,
+          "due_date" => _due_date,
+          "creditor_id" => creditor_id,
+          "creditor_name" => creditor_name,
+          "creditor_iban" => creditor_iban
+        } = _payment_information
       ) do
     Validation.text(
       [
         {:payment_id, payment_id},
         {:creditor_id, creditor_id},
         {:creditor_name, creditor_name},
-        {:creditor_iban, creditor_iban},
-        {:creditor_bic, creditor_bic}
+        {:creditor_iban, creditor_iban}
       ],
       "Parameters must be strings."
     )
   end
 
+  defp get_optional_data(payment_information) do
+    with {:ok, creditor_bic} <- get_creditor_bic(payment_information),
+         {:ok, sequence_type} <- get_sequence_type(payment_information),
+         {:ok, transaction_information} <- get_transaction_information(payment_information),
+         :ok <- Validation.bic(creditor_bic) do
+      {:ok,
+       %{
+         creditor_bic: creditor_bic,
+         sequence_type: sequence_type,
+         transaction_information: transaction_information
+       }}
+    end
+  end
+
+  defp get_creditor_bic(payment_information) do
+    case Map.fetch(payment_information, "creditor_bic") do
+      {:ok, creditor_bic} when is_binary(creditor_bic) ->
+        {:ok, creditor_bic}
+
+      {:ok, creditor_bic} ->
+        Validation.text([{:creditor_bic, creditor_bic}], "Parameters must be strings.")
+
+      :error ->
+        {:ok, ""}
+    end
+  end
+
+  defp get_sequence_type(payment_information) do
+    case Map.fetch(payment_information, "sequence_type") do
+      {:ok, sequence_type}  ->
+        if sequence_type in @sequence_type3_code_atom,
+          do: {:ok, sequence_type},
+          else:
+            {:error,
+             "Parameter sequence_type must be an atom :#{Enum.join(@sequence_type3_code_atom, ", :")}"}
+
+      :error ->
+        {:ok, List.first(@sequence_type3_code_atom)}
+    end
+  end
+
+  defp get_transaction_information(payment_information) do
+    case Map.fetch(payment_information, "transaction_information") do
+      {:ok, transaction_information} when is_list(transaction_information) ->
+        {:ok, transaction_information}
+
+      :error ->
+        {:ok, []}
+    end
+  end
+
   @doc false
   def to_xml(
         %__MODULE__{} = payment_information,
-        transaction_information,
         number_of_transactions,
         control_sum
       )
@@ -269,7 +276,7 @@ defmodule ExSepa.PaymentInformation do
           ])
         ])
       ]),
-      transaction_information
+      ExSepa.TransactionInformation.to_xml(payment_information.transaction_information)
     ])
   end
 end

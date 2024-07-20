@@ -20,8 +20,11 @@ defmodule ExSepa.GroupHeader do
   defstruct [:msg_id, :initiating_party_name]
 
   @doc false
-  @spec new(String.t(), String.t()) :: {:error, String.t()} | {:ok, __MODULE__.t()}
-  def new(msg_id, initiating_party_name)
+  @spec new(map()) :: {:error, String.t()} | {:ok, __MODULE__.t()}
+  def new(
+        %{"msg_id" => msg_id, "initiating_party_name" => initiating_party_name} =
+          _group_header_map
+      )
       when is_binary(msg_id) and is_binary(initiating_party_name) do
     with :ok <- Validation.max_35_text(:msg_id, msg_id),
          :ok <- Validation.max_70_text(:initiating_party_name, initiating_party_name) do
@@ -29,11 +32,22 @@ defmodule ExSepa.GroupHeader do
     end
   end
 
-  def new(msg_id, initiating_party_name) do
-    Validation.text(
-      [{:msg_id, msg_id}, {:initiating_party_name, initiating_party_name}],
-      "Parameters must be strings."
-    )
+  def new(group_header_map) do
+    if Map.has_key?(group_header_map, "msg_id") do
+      if Map.has_key?(group_header_map, "initiating_party_name") do
+        Validation.text(
+          [
+            {:msg_id, group_header_map["msg_id"]},
+            {:initiating_party_name, group_header_map["initiating_party_name"]}
+          ],
+          "Parameters must be strings."
+        )
+      else
+        {:error, "key initiating_party_name is missing"}
+      end
+    else
+      {:error, "key msg_id is missing"}
+    end
   end
 
   @doc false
