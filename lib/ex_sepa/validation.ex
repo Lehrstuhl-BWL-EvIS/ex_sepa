@@ -1,11 +1,7 @@
 defmodule ExSepa.Validation do
   @moduledoc false
 
-  @doc """
-  Latin character set used for SEPA messages
-  """
-  @spec in_language(String.t()) :: {:ok, String.t()} | {:error, String.t()}
-  def in_language(string) do
+  defp in_language(string, pattern) do
     new_string =
       string
       |> String.replace("ä", "a")
@@ -23,21 +19,21 @@ defmodule ExSepa.Validation do
     with :ok <-
            do_pattern_test(
              new_string,
-             ~r/[a-zA-Z0-9|\x2F|\x2D|\x3F|\x3A|\x28|\x29|\x2E|\x20|\x2C|\x27|\x2B]+/
+             pattern
            ) do
       {:ok, new_string}
     end
   end
 
-  def do_pattern_test(string, pattern, acc \\ "")
+  defp do_pattern_test(string, pattern, acc \\ "")
 
-  def do_pattern_test("", _pattern, acc) do
+  defp do_pattern_test("", _pattern, acc) do
     if acc == "",
       do: :ok,
       else: {:error, "These characters are not part of the pattern test: #{acc}"}
   end
 
-  def do_pattern_test(string, pattern, acc) do
+  defp do_pattern_test(string, pattern, acc) do
     sl = String.length(string)
     run_string = Regex.run(pattern, string)
 
@@ -46,7 +42,6 @@ defmodule ExSepa.Validation do
     else
       new_string = Enum.join(run_string)
       nsl = String.length(new_string)
-      # IO.puts("string: #{string}; sl: #{sl}; new: #{new_string}; nsl: #{nsl}")
 
       if sl == nsl do
         do_pattern_test("", pattern, acc)
@@ -90,8 +85,7 @@ defmodule ExSepa.Validation do
     )
   end
 
-  @spec real_text(String.t()) :: :ok | {:error, String.t()}
-  def real_text(text) do
+  defp real_text(text) do
     with true <- is_binary(text),
          true <- String.valid?(text) do
       :ok
@@ -119,7 +113,6 @@ defmodule ExSepa.Validation do
       else: :ok
   end
 
-  @spec min_max_text(String.t(), integer(), integer()) :: :ok | {:error, String.t()}
   defp min_max_text(text, min_length, max_length) do
     case String.length(text) do
       x when x < min_length -> {:error, "Minimum length of #{min_length} characters"}
@@ -128,85 +121,60 @@ defmodule ExSepa.Validation do
     end
   end
 
-  def in_latin_character_set(text) do
-    case in_language(text) do
-      {:ok, language_text} -> {:ok, language_text}
-      {:error, e} -> {:error, "#{e}"}
-    end
-  end
-
-  @spec max_35_text(atom(), String.t()) :: :ok | {:error, String.t()}
-  def max_35_text(element, text) do
+  @doc """
+  Checks the transferred text according to the EPC specifications and returns the text with the best practice conversion.
+  """
+  @spec max_text(atom(), String.t(), non_neg_integer()) ::
+          {:ok, String.t()} | {:error, String.t()}
+  def max_text(element, text, length) do
     with :ok <- real_text(text),
          new_text = text |> String.trim(),
-         :ok <- min_max_text(new_text, 1, 35),
-         :ok <-
-           do_pattern_test(
+         :ok <- min_max_text(new_text, 1, length),
+         {:ok, language_text} <-
+           in_language(
              new_text,
-             ~r/[a-zA-Z0-9|\x2F|\x2D|\x3F|\x3A|\x28|\x29|\x2E|\x20|\x2C|\x27|\x2B]{1,35}/
+             ~r/[a-zA-Z0-9|\x2F|\x2D|\x3F|\x3A|\x28|\x29|\x2E|\x20|\x2C|\x27|\x2B]{1,#{length}}/
            ),
-         :ok <- character_set_start(new_text),
-         :ok <- character_set_end(new_text),
-         :ok <- character_set_contain(new_text) do
-      :ok
+         :ok <- character_set_start(language_text),
+         :ok <- character_set_end(language_text),
+         :ok <- character_set_contain(language_text) do
+      {:ok, language_text}
     else
       {:error, e} ->
         {:error, "#{element}: #{e}"}
     end
   end
 
-  @spec max_70_text(atom(), String.t()) :: :ok | {:error, String.t()}
-  def max_70_text(element, text) do
-    with :ok <- real_text(text),
-         new_text = text |> String.trim(),
-         :ok <- min_max_text(new_text, 1, 70),
-         :ok <-
-           do_pattern_test(
-             new_text,
-             ~r/[a-zA-Z0-9|\x2F|\x2D|\x3F|\x3A|\x28|\x29|\x2E|\x20|\x2C|\x27|\x2B]{1,70}/
-           ),
-         :ok <- character_set_start(new_text),
-         :ok <- character_set_end(new_text),
-         :ok <- character_set_contain(new_text) do
-      :ok
-    else
-      {:error, e} ->
-        {:error, "#{element}: #{e}"}
-    end
-  end
-
-  @spec max_140_text(atom(), String.t()) :: :ok | {:error, String.t()}
-  def max_140_text(element, text) do
-    with :ok <- real_text(text),
-         new_text = text |> String.trim(),
-         :ok <- min_max_text(new_text, 1, 140),
-         :ok <-
-           do_pattern_test(
-             new_text,
-             ~r/[a-zA-Z0-9|\x2F|\x2D|\x3F|\x3A|\x28|\x29|\x2E|\x20|\x2C|\x27|\x2B]{1,140}/
-           ),
-         :ok <- character_set_start(new_text),
-         :ok <- character_set_end(new_text),
-         :ok <- character_set_contain(new_text) do
-      :ok
-    else
-      {:error, e} ->
-        {:error, "#{element}: #{e}"}
-
-      _ ->
-        :unexpected_error
-    end
-  end
-
-  @spec optional_max_140_text(atom(), String.t()) :: :ok | {:error, String.t()}
-  def optional_max_140_text(element, text) do
+  @spec optional_max_text(atom(), String.t(), non_neg_integer()) ::
+          {:ok, String.t()} | {:error, String.t()}
+  def optional_max_text(element, text, length) do
     if text |> String.trim() == "" do
-      :ok
+      {:ok, ""}
     else
-      max_140_text(element, text)
+      max_text(element, text, length)
     end
   end
 
+  @doc """
+  Checks the amount entered. It must be between 0.01 and 999,999,999.99 euros.
+
+  ## Examples
+
+      iex> ExSepa.Validation.amount(50.0)
+      :ok
+
+      iex> ExSepa.Validation.amount(0.0)
+      {:error, "The amount must be more then 0.00"}
+
+      iex> ExSepa.Validation.amount(-53.15)
+      {:error, "The amount must be more then 0.00"}
+
+      iex> ExSepa.Validation.amount(4561237531.0)
+      {:error, "The amount must be less then 999,999,999.99 euro"}
+
+      iex> ExSepa.Validation.amount(30.303)
+      {:error, "Amount has too many decimal places"}
+  """
   @spec amount(float()) :: :ok | {:error, String.t()}
   def amount(amount) do
     if amount <= 0.0 do
@@ -214,8 +182,8 @@ defmodule ExSepa.Validation do
     else
       integer = round(amount * 100)
 
-      if length(Integer.digits(integer)) > 18 do
-        {:error, "The amount is too high"}
+      if length(Integer.digits(integer)) > 11 do
+        {:error, "The amount must be less then 999,999,999.99 euro"}
       else
         if integer / 100.0 == amount do
           :ok
@@ -258,6 +226,55 @@ defmodule ExSepa.Validation do
       case Bankster.bic_valid?(bic) do
         true -> :ok
         false -> {:error, "BIC is not valid"}
+      end
+    end
+  end
+
+  @spec country_code(String.t()) :: :ok | {:error, String.t()}
+  def country_code(country) do
+    with :ok <- do_pattern_test(country, ~r/[A-Z]{2,2}/) do
+      if Enum.member?(ExSepa.get_bic_country_codes(), country) do
+        :ok
+      else
+        {:error, "Country code not in list!"}
+      end
+    end
+  end
+
+  @doc """
+  Checks whether the transmitted country code corresponds to one of the EEA countries and, if applicable, whether an address has been specified.
+
+  ## Examples
+
+      iex> ExSepa.Validation.address_mandatory("DE", "", nil)
+      :ok
+
+      iex> ExSepa.Validation.address_mandatory("AD", "", nil)
+      {:error, "BIC is mandatory for non-EEA SEPA country or territory"}
+
+      iex> ExSepa.Validation.address_mandatory("AD", "CASBADADXXX", nil)
+      {:error, "Address is mandatory for non-EEA SEPA country or territory"}
+
+      iex> ExSepa.Validation.address_mandatory("AD", "CASBADADXXX", %ExSepa.Address{town_name: "Andorra la Vella", country: "AD"})
+      :ok
+  """
+  @spec address_mandatory(String.t(), String.t(), ExSepa.Address.t() | nil) ::
+          :ok | {:error, String.t()}
+  def address_mandatory(country, bic, address) do
+    with :ok <- do_pattern_test(country, ~r/[A-Z]{2,2}/) do
+      if Enum.member?(ExSepa.get_eea_iban_country_codes(), country) do
+        :ok
+      else
+        cond do
+          bic == "" ->
+            {:error, "BIC is mandatory for non-EEA SEPA country or territory"}
+
+          address == nil ->
+            {:error, "Address is mandatory for non-EEA SEPA country or territory"}
+
+          true ->
+            :ok
+        end
       end
     end
   end
