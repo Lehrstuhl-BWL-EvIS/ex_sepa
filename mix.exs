@@ -6,8 +6,7 @@ defmodule ExSepa.MixProject do
       app: :ex_sepa,
       version: "0.1.0",
       elixir: "~> 1.16",
-      # :prod
-      start_permanent: Mix.env() == :test,
+      start_permanent: Mix.env() == :prod,
       description: "ExSepa enables the creation of SEPA core direct debits.",
       package: package(),
       deps: deps(),
@@ -20,7 +19,7 @@ defmodule ExSepa.MixProject do
         # The main page in the docs
         # main: "ExSepa",
         # logo: "path/to/logo.png",
-        extras: ["README.md"]
+        extras: ["README.md", "LICENSE"]
       ]
     ]
   end
