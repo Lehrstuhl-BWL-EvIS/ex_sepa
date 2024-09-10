@@ -8,6 +8,8 @@ defmodule ExSepa.MixProject do
       elixir: "~> 1.16",
       # :prod
       start_permanent: Mix.env() == :test,
+      description: "ExSepa enables the creation of SEPA core direct debits.",
+      package: package(),
       deps: deps(),
 
       # Docs
@@ -23,16 +25,27 @@ defmodule ExSepa.MixProject do
     ]
   end
 
-  # Run "mix help compile.app" to learn about applications.
   def application do
     [
       extra_applications: [:logger]
     ]
   end
 
-  # Run "mix help deps" to learn about dependencies.
+  defp package do
+    [
+      # maintainers: ["Stefan Göttsching"],
+      licenses: ["Apache-2.0"],
+      links: %{"GitHub" => "https://github.com/Lehrstuhl-BWL-EvIS/ex_sepa"}
+    ]
+  end
+
   defp deps do
     [
+      # Validator for IBAN account and BIC numbers
+      # https://hexdocs.pm/bankster/api-reference.html
+      # https://github.com/railsmechanic/bankster
+      {:bankster, "~> 0.4.0"},
+
       # Linter for better code consistency
       # https://hexdocs.pm/credo/overview.html
       # https://github.com/rrrene/credo
@@ -47,11 +60,6 @@ defmodule ExSepa.MixProject do
       # https://hexdocs.pm/ex_doc/readme.html
       # https://github.com/elixir-lang/ex_doc
       {:ex_doc, "~> 0.31", only: :dev, runtime: false},
-
-      # Validator for IBAN account and BIC numbers
-      # https://hexdocs.pm/bankster/api-reference.html
-      # https://github.com/railsmechanic/bankster
-      {:bankster, "~> 0.4.0"},
 
       # Generates fake data (primarily for the seed)
       # https://hexdocs.pm/faker/readme.html

@@ -154,3 +154,27 @@ ex_sepa-*.tar
 # Temporary files, for example, from tests.
 /tmp/
 pain.test.xml
+pain.test_1.xml
+pain.test_5.xml
+pain.test_9.xml
+pain.test_10.xml
+pain.test_50.xml
+pain.test_100_000.xml
+pain.test_100.xml
+pain.test_300.xml
+pain.test_450.xml
+pain.test_500.xml
+pain.test_750.xml
+pain.test_1000.xml
+pain.test_3000.xml
+pain.test_5000.xml
+pain.test_10000.xml
+pain.test_50000.xml
+pain.test_100000.xml
+pain.test_dd.xml
+pain.test_40000.xml
+pain.test_5500.xml
+pain.test_15000.xml
+pain.test_20000.xml
+pain.test_30000.xml
+pain.008.001.08.xml
