@@ -5,11 +5,11 @@ defmodule ExSepa.MixProject do
     [
       app: :ex_sepa,
       version: "0.1.0",
-      elixir: "~> 1.16",
+      elixir: "~> 1.17",
       start_permanent: Mix.env() == :prod,
-      description: "ExSepa enables the creation of SEPA core direct debits.",
-      package: package(),
       deps: deps(),
+      description: "ExSepa is an Elixir library for generating SEPA Core Direct Debits",
+      package: package(),
 
       # Docs
       name: "ExSepa",
@@ -58,9 +58,9 @@ defmodule ExSepa.MixProject do
       # Generates the documentation for the entire project
       # https://hexdocs.pm/ex_doc/readme.html
       # https://github.com/elixir-lang/ex_doc
-      {:ex_doc, "~> 0.31", only: :dev, runtime: false},
+      {:ex_doc, "~> 0.37", only: :dev, runtime: false},
 
-      # Generates fake data (primarily for the seed)
+      # Generates fake data
       # https://hexdocs.pm/faker/readme.html
       # https://github.com/elixirs/faker
       {:faker, "~> 0.18", only: [:dev, :test]},
