@@ -2,14 +2,13 @@
 
 > ⚠️ Work in progress, not ready for production ⚡
 
-ExSepa is an Elixir library that is used to create SEPA direct debits.
-In the first version, only the use of SEPA core direct debits is available.
-The generated XML data is validated with the XML schema definition of the German Banking Industry. 
+ExSepa is an Elixir library for generating SEPA direct debits.
+The first release supports only SEPA Core Direct Debits.
+Generated XML data is validated against the XML Schema Definition (XSD) provided by the German Banking Industry.
 
 ## Installation
 
-If [available in Hex](https://hex.pm/docs/publish), the package can be installed
-by adding `ex_sepa` to your list of dependencies in `mix.exs`:
+If [available in Hex](https://hex.pm/docs/publish), the package can be installed by adding `ex_sepa` to your list of dependencies in `mix.exs`:
 
 ```elixir
 def deps do
