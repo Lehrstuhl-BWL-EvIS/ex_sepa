@@ -1,4 +1,58 @@
 # ##################################################
+# Editor: Emacs
+# https://github.com/github/gitignore/blob/main/Global/Emacs.gitignore
+
+# -*- mode: gitignore; -*-
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# Org-mode
+.org-id-locations
+*_archive
+
+# flymake-mode
+*_flymake.*
+
+# eshell files
+/eshell/history
+/eshell/lastdir
+
+# elpa packages
+/elpa/
+
+# reftex files
+*.rel
+
+# AUCTeX auto folder
+/auto/
+
+# cask packages
+.cask/
+dist/
+
+# Flycheck
+flycheck_*.el
+
+# server auth directory
+/server/
+
+# projectiles files
+.projectile
+
+# directory configuration
+.dir-locals.el
+
+# network security
+/network-security.data
+
+
+# ##################################################
 # Editor: JetBrains IDEs
 # https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
 
@@ -24,6 +78,12 @@ atlassian-ide-plugin.xml
 
 
 # ##################################################
+# Editor: Obsidian
+
+.obsidian/
+
+
+# ##################################################
 # Editor: Panic Nova
 
 .nova/
@@ -40,6 +100,12 @@ atlassian-ide-plugin.xml
 
 # Built Visual Studio Code Extensions
 *.vsix
+
+
+# ##################################################
+# Editor: Zed
+
+.zed/
 
 
 # ##################################################
@@ -153,6 +219,9 @@ ex_sepa-*.tar
 
 # Temporary files, for example, from tests.
 /tmp/
+
+# Custom
+*.beam
 pain.test.xml
 pain.test_1.xml
 pain.test_5.xml
